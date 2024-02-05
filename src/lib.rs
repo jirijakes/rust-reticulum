@@ -52,12 +52,12 @@ pub enum PacketType {
 
 #[derive(Debug)]
 pub struct Header {
-    ifac_flag: IfacFlag,
-    header_type: HeaderType,
-    propagation_type: PropagationType,
-    destination_type: DestinationType,
-    packet_type: PacketType,
-    hops: u8,
+    pub ifac_flag: IfacFlag,
+    pub header_type: HeaderType,
+    pub propagation_type: PropagationType,
+    pub destination_type: DestinationType,
+    pub packet_type: PacketType,
+    pub hops: u8,
 }
 
 pub trait Interface {
@@ -87,10 +87,16 @@ impl<'a> Debug for Destination<'a> {
 pub struct Packet<'a, I: Interface> {
     header: Header,
     ifac: Option<&'a [u8]>,
-    destination: Destination<'a>,
+    pub destination: Destination<'a>,
     context: u8,
     pub data: Payload<'a>,
     phantom: PhantomData<I>,
+}
+
+impl<'a, I: Interface> Packet<'a, I> {
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
 }
 
 fn ifac_flag(input: (&[u8], usize)) -> IResult<(&[u8], usize), IfacFlag> {
@@ -183,13 +189,13 @@ where
 
 #[derive(Debug)]
 pub struct Announce<'a> {
-    public_key: PublicKey,
-    verifying_key: VerifyingKey,
-    signature: Signature,
-    name_hash: &'a [u8],
-    random_hash: &'a [u8],
-    app_data: Option<&'a [u8]>,
-    destination: Destination<'a>,
+    pub public_key: PublicKey,
+    pub verifying_key: VerifyingKey,
+    pub signature: Signature,
+    pub name_hash: &'a [u8],
+    pub random_hash: &'a [u8],
+    pub app_data: Option<&'a [u8]>,
+    pub destination: Destination<'a>,
 }
 
 impl<'a> Announce<'a> {
@@ -230,9 +236,9 @@ impl<'a> Announce<'a> {
 
 #[derive(Debug)]
 pub struct PathRequest<'a> {
-    destination_hash: &'a [u8; 16],
-    transport: Option<&'a [u8; 16]>,
-    tag: Option<&'a [u8]>,
+    pub destination_hash: &'a [u8; 16],
+    pub transport: Option<&'a [u8; 16]>,
+    pub tag: Option<&'a [u8]>,
 }
 
 #[derive(Debug)]
