@@ -83,14 +83,23 @@ impl<'a> Debug for Destination<'a> {
     }
 }
 
+impl<'a> Encode for Destination<'a> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        match self {
+            Destination::Type1(h) => h.encode(writer),
+            Destination::Type2(h1, h2) => h1.encode(writer) + h2.encode(writer),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Packet<'a, I: Interface> {
-    header: Header,
-    ifac: Option<&'a [u8]>,
+    pub header: Header,
+    pub ifac: Option<&'a [u8]>,
     pub destination: Destination<'a>,
-    context: u8,
+    pub context: u8,
     pub data: Payload<'a>,
-    phantom: PhantomData<I>,
+    pub phantom: PhantomData<I>,
 }
 
 impl<'a, I: Interface> Packet<'a, I> {
@@ -198,6 +207,18 @@ pub struct Announce<'a> {
     pub destination: Destination<'a>,
 }
 
+impl<'a> Encode for Announce<'a> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        self.public_key.as_bytes().encode(writer)
+            + self.verifying_key.as_bytes().encode(writer)
+            + self.signature.to_bytes().as_slice().encode(writer)
+            + self.name_hash.encode(writer)
+            + self.random_hash.encode(writer)
+            + self.app_data.encode(writer)
+            + self.destination.encode(writer)
+    }
+}
+
 impl<'a> Announce<'a> {
     pub fn validate(&self) {
         let mut message = vec![];
@@ -246,6 +267,16 @@ pub enum Payload<'a> {
     Announce(Announce<'a>),
     PathRequest(PathRequest<'a>),
     Data(&'a [u8]),
+}
+
+impl<'a> Encode for Payload<'a> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        match self {
+            Payload::Announce(a) => a.encode(writer),
+            Payload::PathRequest(r) => r.encode(writer),
+            Payload::Data(d) => d.encode(writer),
+        }
+    }
 }
 
 fn path_request(input: &[u8]) -> IResult<&[u8], Payload> {
@@ -357,6 +388,108 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
     ))
 }
 
+pub trait Write {
+    fn write(&mut self, buf: &[u8]) -> usize;
+}
+
+impl Write for Vec<u8> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.extend_from_slice(buf);
+        buf.len()
+    }
+}
+
+impl<'a> Write for &'a mut [u8] {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        let available = self.len().min(buf.len());
+        self[..available].copy_from_slice(&buf[..available]);
+        *self = &mut core::mem::take(self)[available..];
+        available
+    }
+}
+
+pub trait Encode {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize;
+}
+
+impl Encode for Header {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        let mut header = 0u8;
+        header |= match self.ifac_flag {
+            IfacFlag::Open => 0,
+            IfacFlag::Authenticated => 1,
+        } << 7;
+        header |= match self.header_type {
+            HeaderType::Type1 => 0,
+            HeaderType::Type2 => 1,
+        } << 6;
+        header |= match self.propagation_type {
+            PropagationType::Broadcast => 0,
+            PropagationType::Transport => 1,
+            PropagationType::Relay => 2,
+            PropagationType::Tunnel => 3,
+        } << 4;
+        header |= match self.destination_type {
+            DestinationType::Single => 0,
+            DestinationType::Group => 1,
+            DestinationType::Plain => 2,
+            DestinationType::Link => 3,
+        } << 2;
+        header |= match self.packet_type {
+            PacketType::Data => 0,
+            PacketType::Announce => 1,
+            PacketType::LinkRequest => 2,
+            PacketType::Proof => 3,
+        };
+        writer.write(&[header, self.hops])
+    }
+}
+
+impl<const N: usize> Encode for &[u8; N] {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        writer.write(self.as_slice())
+    }
+}
+
+impl<'a> Encode for &'a [u8] {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        writer.write(self)
+    }
+}
+
+impl Encode for u8 {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        writer.write(&[*self])
+    }
+}
+
+impl<T: Encode> Encode for Option<T> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        if let Some(s) = self {
+            s.encode(writer)
+        } else {
+            0
+        }
+    }
+}
+
+impl<'a> Encode for PathRequest<'a> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        self.destination_hash.encode(writer)
+            + self.transport.encode(writer)
+            + self.tag.encode(writer)
+    }
+}
+
+impl<'a, I: Interface> Encode for Packet<'a, I> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        self.header.encode(writer)
+            + self.destination.encode(writer)
+            + self.context.encode(writer)
+            + self.data.encode(writer)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +498,67 @@ mod tests {
     struct TestInf;
     impl Interface for TestInf {
         const LENGTH: usize = 2;
+    }
+
+    #[test]
+    fn encode_header() {
+        let header = Header {
+            ifac_flag: IfacFlag::Open,
+            header_type: HeaderType::Type1,
+            propagation_type: PropagationType::Broadcast,
+            destination_type: DestinationType::Plain,
+            packet_type: PacketType::Data,
+            hops: 0,
+        };
+
+        let mut buf = Vec::new();
+        let written = header.encode(&mut buf);
+        assert_eq!(written, 2);
+        assert_eq!(buf, [0x08, 0x00]);
+    }
+
+    #[test]
+    fn encode_packet_path_request() {
+        let mut buf = Vec::new();
+        let packet: Packet<TestInf> = Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: DestinationType::Plain,
+                packet_type: PacketType::Data,
+                hops: 0,
+            },
+            ifac: None,
+            destination: Destination::Type1(&[
+                0x6b, 0x9f, 0x66, 0x01, 0x4d, 0x98, 0x53, 0xfa, 0xab, 0x22, 0x0f, 0xba, 0x47, 0xd0,
+                0x27, 0x61,
+            ]),
+            context: 0,
+            data: Payload::PathRequest(PathRequest {
+                destination_hash: &[
+                    235, 252, 186, 213, 27, 223, 220, 228, 69, 35, 238, 49, 26, 222, 169, 162,
+                ],
+                transport: Some(&[
+                    192, 202, 232, 46, 73, 147, 217, 13, 240, 198, 26, 209, 158, 195, 141, 166,
+                ]),
+                tag: Some(&[
+                    4, 175, 40, 70, 0, 120, 59, 234, 132, 61, 97, 32, 189, 35, 51, 239,
+                ]),
+            }),
+            phantom: PhantomData,
+        };
+        let written = packet.encode(&mut buf);
+        let expected = vec![
+            0x08, 0x00, 0x6b, 0x9f, 0x66, 0x01, 0x4d, 0x98, 0x53, 0xfa, 0xab, 0x22, 0x0f, 0xba,
+            0x47, 0xd0, 0x27, 0x61, 0x00, 0xeb, 0xfc, 0xba, 0xd5, 0x1b, 0xdf, 0xdc, 0xe4, 0x45,
+            0x23, 0xee, 0x31, 0x1a, 0xde, 0xa9, 0xa2, 0xc0, 0xca, 0xe8, 0x2e, 0x49, 0x93, 0xd9,
+            0x0d, 0xf0, 0xc6, 0x1a, 0xd1, 0x9e, 0xc3, 0x8d, 0xa6, 0x04, 0xaf, 0x28, 0x46, 0x00,
+            0x78, 0x3b, 0xea, 0x84, 0x3d, 0x61, 0x20, 0xbd, 0x23, 0x33, 0xef,
+        ];
+
+        assert_eq!(buf.len(), written);
+        assert_eq!(buf, expected);
     }
 
     #[test]
@@ -437,11 +631,13 @@ mod tests {
 
         // Path request for <ebfcbad51bdfdce44523ee311adea9a2> on TCPInterface[…]
 
-        let input: &[u8] = &hex::decode("7e08006b9f66014d9853faab220fba47d0276100ebfcbad51bdfdce44523ee311adea9a2c0cae82e4993d90df0c61ad19ec38da604af284600783bea843d6120bd2333ef7e").unwrap();
+        let input: &[u8] =&hex::decode("7e5101c0cae82e4993d90df0c61ad19ec38da66d36f782ca4930b5206e037d5ea2347d5e4a003a595fbdbfc3ffc33f2c3c1b51c507d36f3088f1ff39a323bdad94449cb29f496d61d09ea87915240dbf2ec38c03760d1f00112e9e521124ad3cbaf91e76d0b36ec60bc318e2c0f0d90810d1a8b21e0065c462116e0c92a19b915bcaf689796233c6da25571c60718402d3ca7baed6e5fd91911e666edee24321a58ada6149cc742006a12c254010396f26f768444107b14d9009427442204e6f646520526f6d656f20416c657274737e").unwrap();
+
+        // &hex::decode("7e08006b9f66014d9853faab220fba47d0276100ebfcbad51bdfdce44523ee311adea9a2c0cae82e4993d90df0c61ad19ec38da604af284600783bea843d6120bd2333ef7e").unwrap();
 
         let zzz: IResult<&[u8], Packet<TestInf>> = hdlc(packet::<TestInf>)(input);
 
-        println!("{:?}", zzz);
+        // println!("{:?}", zzz);
 
         if let Ok((_, packet)) = zzz {
             if let Payload::Announce(ann) = packet.data {
