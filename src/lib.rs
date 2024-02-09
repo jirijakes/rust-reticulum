@@ -1,15 +1,17 @@
+pub mod hdlc;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use ed25519_dalek::{Signature, VerifyingKey};
 use nom::bits::bits;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take, take_until};
-use nom::combinator::{all_consuming, cond, map, map_opt, rest, success};
+use nom::bytes::complete::take;
+use nom::combinator::{cond, map, map_opt, rest, success};
 use nom::complete::bool;
 use nom::error::{make_error, ErrorKind, ParseError};
 use nom::number::complete::u8;
-use nom::sequence::{delimited, tuple};
+use nom::sequence::tuple;
 use nom::{Err, IResult, Parser};
 use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey;
@@ -181,21 +183,6 @@ fn hash(input: &[u8]) -> IResult<&[u8], &[u8; 16]> {
     }
 }
 
-pub fn hdlc<'a, O, E: ParseError<&'a [u8]>, F>(
-    f: F,
-) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], O, E>
-where
-    F: Parser<&'a [u8], O, E>,
-{
-    let mut parse_all = all_consuming(f);
-    move |input: &'a [u8]| -> IResult<&'a [u8], O, E> {
-        let flag: &[u8] = &[0x7e];
-        let (input, data) = delimited(tag(flag), take_until(flag), tag(flag))(input)?;
-        let (_, parsed) = parse_all(data)?;
-        Ok((input, parsed))
-    }
-}
-
 #[derive(Debug)]
 pub struct Announce<'a> {
     pub public_key: PublicKey,
@@ -238,8 +225,7 @@ impl<'a> Announce<'a> {
         if let Some(data) = self.app_data {
             message.extend_from_slice(data);
         }
-        let x = self.verifying_key.verify_strict(&message, &self.signature);
-        println!("{:?}", x);
+        let valid = self.verifying_key.verify_strict(&message, &self.signature);
 
         let mut engine = Sha256::new();
         engine.update(self.public_key);
@@ -251,7 +237,7 @@ impl<'a> Announce<'a> {
         engine.update(&id[..16]);
         let x: [u8; 32] = engine.finalize().into();
 
-        println!("{}", hex::encode(&x[..16]));
+        println!("Validation: {valid:?} {}", hex::encode(&x[..16]));
     }
 }
 
@@ -351,7 +337,6 @@ where
 }
 
 pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
-    // let (input, _) = value(0x7e, u8)(input)?;
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, destination) = match header.header_type {
@@ -493,6 +478,7 @@ impl<'a, I: Interface> Encode for Packet<'a, I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::prelude::*;
 
     #[derive(Debug)]
     struct TestInf;
@@ -629,17 +615,29 @@ mod tests {
             0x74, 0x65, 0x73, 0x74, 0x6e, 0x6f, 0x64, 0x65, 0x31, 0x7e,
         ];
 
-        // Path request for <ebfcbad51bdfdce44523ee311adea9a2> on TCPInterface[…]
+        let vec6: &[u8] = &vec![
+            0x7e, 0x51, 0x01, 0xc0, 0xca, 0xe8, 0x2e, 0x49, 0x93, 0xd9, 0x0d, 0xf0, 0xc6, 0x1a,
+            0xd1, 0x9e, 0xc3, 0x8d, 0xa6, 0x6d, 0x36, 0xf7, 0x82, 0xca, 0x49, 0x30, 0xb5, 0x20,
+            0x6e, 0x03, 0x7d, 0x5e, 0xa2, 0x34, 0x7d, 0x5e, 0x4a, 0x00, 0x3a, 0x59, 0x5f, 0xbd,
+            0xbf, 0xc3, 0xff, 0xc3, 0x3f, 0x2c, 0x3c, 0x1b, 0x51, 0xc5, 0x07, 0xd3, 0x6f, 0x30,
+            0x88, 0xf1, 0xff, 0x39, 0xa3, 0x23, 0xbd, 0xad, 0x94, 0x44, 0x9c, 0xb2, 0x9f, 0x49,
+            0x6d, 0x61, 0xd0, 0x9e, 0xa8, 0x79, 0x15, 0x24, 0x0d, 0xbf, 0x2e, 0xc3, 0x8c, 0x03,
+            0x76, 0x0d, 0x1f, 0x00, 0x11, 0x2e, 0x9e, 0x52, 0x11, 0x24, 0xad, 0x3c, 0xba, 0xf9,
+            0x1e, 0x76, 0xd0, 0xb3, 0x6e, 0xc6, 0x0b, 0xc3, 0x18, 0xe2, 0xc0, 0xf0, 0xd9, 0x08,
+            0x10, 0xd1, 0xa8, 0xb2, 0x1e, 0x00, 0x65, 0xc4, 0x62, 0x11, 0x6e, 0x0c, 0x92, 0xa1,
+            0x9b, 0x91, 0x5b, 0xca, 0xf6, 0x89, 0x79, 0x62, 0x33, 0xc6, 0xda, 0x25, 0x57, 0x1c,
+            0x60, 0x71, 0x84, 0x02, 0xd3, 0xca, 0x7b, 0xae, 0xd6, 0xe5, 0xfd, 0x91, 0x91, 0x1e,
+            0x66, 0x6e, 0xde, 0xe2, 0x43, 0x21, 0xa5, 0x8a, 0xda, 0x61, 0x49, 0xcc, 0x74, 0x20,
+            0x06, 0xa1, 0x2c, 0x25, 0x40, 0x10, 0x39, 0x6f, 0x26, 0xf7, 0x68, 0x44, 0x41, 0x07,
+            0xb1, 0x4d, 0x90, 0x09, 0x42, 0x74, 0x42, 0x20, 0x4e, 0x6f, 0x64, 0x65, 0x20, 0x52,
+            0x6f, 0x6d, 0x65, 0x6f, 0x20, 0x41, 0x6c, 0x65, 0x72, 0x74, 0x73, 0x7e,
+        ];
 
-        let input: &[u8] =&hex::decode("7e5101c0cae82e4993d90df0c61ad19ec38da66d36f782ca4930b5206e037d5ea2347d5e4a003a595fbdbfc3ffc33f2c3c1b51c507d36f3088f1ff39a323bdad94449cb29f496d61d09ea87915240dbf2ec38c03760d1f00112e9e521124ad3cbaf91e76d0b36ec60bc318e2c0f0d90810d1a8b21e0065c462116e0c92a19b915bcaf689796233c6da25571c60718402d3ca7baed6e5fd91911e666edee24321a58ada6149cc742006a12c254010396f26f768444107b14d9009427442204e6f646520526f6d656f20416c657274737e").unwrap();
+        let mut unescaped = Vec::new();
+        let mut escaped = crate::hdlc::Hdlc::new(vec6);
+        let _ = escaped.read_to_end(&mut unescaped);
 
-        // &hex::decode("7e08006b9f66014d9853faab220fba47d0276100ebfcbad51bdfdce44523ee311adea9a2c0cae82e4993d90df0c61ad19ec38da604af284600783bea843d6120bd2333ef7e").unwrap();
-
-        let zzz: IResult<&[u8], Packet<TestInf>> = hdlc(packet::<TestInf>)(input);
-
-        // println!("{:?}", zzz);
-
-        if let Ok((_, packet)) = zzz {
+        if let Ok((_, packet)) = packet::<TestInf>(&unescaped) {
             if let Payload::Announce(ann) = packet.data {
                 ann.validate();
             }

@@ -2,9 +2,9 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 
 use env_logger::Env;
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 
-use reticulum::{hdlc, packet, Destination, Interface, Payload};
+use reticulum::{packet, Destination, Interface, Payload};
 
 #[derive(Debug)]
 struct TestInf;
@@ -13,18 +13,21 @@ impl Interface for TestInf {
 }
 
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
 
     info!("Starting rusty Reticulum.");
 
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
-    let mut stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
+    let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
     // let mut stream = TcpStream::connect("localhost:4998").unwrap();
+
+    let mut stream = reticulum::hdlc::Hdlc::new(stream);
 
     let mut buf = [0u8; 512];
 
     while let Ok(x) = stream.read(&mut buf) {
-        match hdlc(packet::<TestInf>)(buf.get(0..x).unwrap()) {
+        trace!("{}", hex::encode(buf.get(0..x).unwrap()));
+        match packet::<TestInf>(buf.get(0..x).unwrap()) {
             Ok((_, packet)) => {
                 debug!(
                     "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {}",
