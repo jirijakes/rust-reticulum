@@ -1,4 +1,5 @@
 pub mod hdlc;
+pub mod identity;
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -15,6 +16,8 @@ use nom::sequence::tuple;
 use nom::{Err, IResult, Parser};
 use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey;
+
+use crate::identity::Identity;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum IfacFlag {
@@ -227,14 +230,11 @@ impl<'a> Announce<'a> {
         }
         let valid = self.verifying_key.verify_strict(&message, &self.signature);
 
-        let mut engine = Sha256::new();
-        engine.update(self.public_key);
-        engine.update(self.verifying_key);
-        let id: [u8; 32] = engine.finalize().into();
+        let identity = Identity::new(self.public_key, self.verifying_key);
 
         let mut engine = Sha256::new();
         engine.update(self.name_hash);
-        engine.update(&id[..16]);
+        engine.update(identity.hash());
         let x: [u8; 32] = engine.finalize().into();
 
         println!("Validation: {valid:?} {}", hex::encode(&x[..16]));
