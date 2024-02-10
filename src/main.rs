@@ -1,12 +1,18 @@
+use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
+use std::path::Path;
 
+use ed25519_dalek::{SigningKey, VerifyingKey};
 use env_logger::Env;
 use log::{debug, info, trace, warn};
 
+use rand_core::OsRng;
 use reticulum::destination::Destination;
+use reticulum::identity::Identity;
 use reticulum::interface::Interface;
 use reticulum::packet::Payload;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 #[derive(Debug)]
 struct TestInf;
@@ -14,10 +20,36 @@ impl Interface for TestInf {
     const LENGTH: usize = 2;
 }
 
+fn load_identity() -> (Identity, StaticSecret, SigningKey) {
+    let path = Path::new("reticulum_identity");
+    if path.exists() {
+        let mut file = File::open(path).expect("open file");
+        let mut sign_key = [0u8; 32];
+        let mut static_key = [0u8; 32];
+        let _ = file.read(&mut sign_key).expect("read public key");
+        let _ = file.read(&mut static_key).expect("read verifying key");
+        let sign_key = SigningKey::from(sign_key);
+        let static_key = StaticSecret::from(static_key);
+        (
+            Identity::load(sign_key.clone(), static_key.clone()),
+            static_key,
+            sign_key,
+        )
+    } else {
+        let mut file = File::create(path).expect("create file");
+        let (identity, static_key, sign_key) = Identity::generate(OsRng);
+        let _ = file.write(sign_key.as_bytes());
+        let _ = file.write(static_key.as_bytes());
+        (identity, static_key, sign_key)
+    }
+}
+
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
 
-    info!("Starting rusty Reticulum.");
+    let (identity, _static_key, _sign_key) = load_identity();
+
+    info!("Starting rusty Reticulum with {identity:?}.");
 
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
     // let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
