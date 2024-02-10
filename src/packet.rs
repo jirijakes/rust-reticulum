@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::announce::Announce;
-use crate::destination::Destination;
+use crate::destination::DestinationHash;
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
 use crate::path_request::PathRequest;
@@ -10,7 +10,8 @@ use crate::path_request::PathRequest;
 pub struct Packet<'a, I: Interface> {
     pub header: Header,
     pub ifac: Option<&'a [u8]>,
-    pub destination: Destination<'a>,
+    pub destination: DestinationHash<'a>,
+    // TODO: make enum
     pub context: u8,
     pub data: Payload<'a>,
     pub phantom: PhantomData<I>,
@@ -127,7 +128,6 @@ pub enum PacketType {
     Proof,
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::parse::packet;
@@ -171,7 +171,7 @@ mod tests {
                 hops: 0,
             },
             ifac: None,
-            destination: Destination::Type1(&[
+            destination: DestinationHash::Type1(&[
                 0x6b, 0x9f, 0x66, 0x01, 0x4d, 0x98, 0x53, 0xfa, 0xab, 0x22, 0x0f, 0xba, 0x47, 0xd0,
                 0x27, 0x61,
             ]),

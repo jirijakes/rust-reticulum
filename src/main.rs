@@ -3,16 +3,16 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::path::Path;
 
-use ed25519_dalek::{SigningKey, VerifyingKey};
+use ed25519_dalek::SigningKey;
 use env_logger::Env;
 use log::{debug, info, trace, warn};
-
 use rand_core::OsRng;
-use reticulum::destination::Destination;
+use x25519_dalek::StaticSecret;
+
+use reticulum::destination::DestinationHash;
 use reticulum::identity::Identity;
 use reticulum::interface::Interface;
 use reticulum::packet::Payload;
-use x25519_dalek::{PublicKey, StaticSecret};
 
 #[derive(Debug)]
 struct TestInf;
@@ -72,8 +72,8 @@ fn main() {
                     packet.header().packet_type,
                     packet.header().hops,
                     match packet.destination {
-                        Destination::Type1(h) => hex::encode(h).to_string(),
-                        Destination::Type2(h1, h2) =>
+                        DestinationHash::Type1(h) => hex::encode(h).to_string(),
+                        DestinationHash::Type2(h1, h2) =>
                             format!("{} → {}", hex::encode(h1), hex::encode(h2)),
                     }
                 );

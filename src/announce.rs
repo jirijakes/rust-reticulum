@@ -2,17 +2,17 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey;
 
-use crate::{destination::Destination, encode::{Encode, Write}, identity::Identity};
+use crate::{destination::DestinationHash, encode::{Encode, Write}, identity::Identity};
 
 #[derive(Debug)]
 pub struct Announce<'a> {
     pub public_key: PublicKey,
     pub verifying_key: VerifyingKey,
     pub signature: Signature,
-    pub name_hash: &'a [u8],
-    pub random_hash: &'a [u8],
+    pub name_hash: &'a [u8; 10],
+    pub random_hash: &'a [u8; 10],
     pub app_data: Option<&'a [u8]>,
-    pub destination: Destination<'a>,
+    pub destination: DestinationHash<'a>,
 }
 
 impl<'a> Encode for Announce<'a> {
@@ -31,10 +31,10 @@ impl<'a> Announce<'a> {
     pub fn validate(&self) {
         let mut message = vec![];
         match self.destination {
-            Destination::Type1(h) => {
+            DestinationHash::Type1(h) => {
                 message.extend_from_slice(h);
             }
-            Destination::Type2(_, h2) => {
+            DestinationHash::Type2(_, h2) => {
                 message.extend_from_slice(h2);
             }
         }

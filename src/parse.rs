@@ -13,7 +13,7 @@ use nom::{Err, IResult, Parser};
 use x25519_dalek::PublicKey;
 
 use crate::announce::Announce;
-use crate::destination::Destination;
+use crate::destination::DestinationHash;
 use crate::interface::Interface;
 use crate::packet::{
     DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
@@ -126,13 +126,13 @@ fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
 }
 
 fn announce<'a>(
-    destination: Destination<'a>,
+    destination: DestinationHash<'a>,
 ) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
     move |input| {
         let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
         let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
-        let (input, named_hash) = take(10usize)(input)?;
-        let (input, random_hash) = take(10usize)(input)?;
+        let (input, name_hash) = array(input)?;
+        let (input, random_hash) = array(input)?;
         let (input, signature) = map(array, |a| a.into())(input)?;
         let (input, app_data) =
             map(rest, |data: &[u8]| Some(data).filter(|d| !d.is_empty()))(input)?;
@@ -142,7 +142,7 @@ fn announce<'a>(
                 public_key,
                 verifying_key,
                 signature,
-                name_hash: named_hash,
+                name_hash,
                 random_hash,
                 app_data,
                 destination,
@@ -168,9 +168,9 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, destination) = match header.header_type {
-        HeaderType::Type1 => map(hash, Destination::Type1)(input)?,
+        HeaderType::Type1 => map(hash, DestinationHash::Type1)(input)?,
         HeaderType::Type2 => {
-            map(tuple((hash, hash)), |(h1, h2)| Destination::Type2(h1, h2))(input)?
+            map(tuple((hash, hash)), |(h1, h2)| DestinationHash::Type2(h1, h2))(input)?
         }
     };
     let (input, context) = u8(input)?;

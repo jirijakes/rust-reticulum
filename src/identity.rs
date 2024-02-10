@@ -32,6 +32,10 @@ impl Identity {
         &self.hash
     }
 
+    pub fn hash_str(&self) -> String {
+	hex::encode(self.hash())
+    }
+    
     pub fn generate<T: CryptoRngCore>(mut csprng: T) -> (Identity, StaticSecret, SigningKey) {
         let sign_key = SigningKey::generate(&mut csprng);
         let dh_key = StaticSecret::random_from_rng(csprng);
