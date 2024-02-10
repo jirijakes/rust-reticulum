@@ -2,7 +2,6 @@ use rand_core::OsRng;
 
 use reticulum::destination::Destination;
 use reticulum::identity::Identity;
-use reticulum::packet::DestinationType;
 use reticulum::sign::FixedKey;
 
 pub fn main() {
@@ -10,7 +9,7 @@ pub fn main() {
 
     let sign = FixedKey::new(sign_key);
 
-    let destination = Destination::new(&identity, DestinationType::Single, "testing_app", "fruits");
+    let destination = Destination::single_in(&identity, "testing_app", "fruits");
 
     println!("{}", destination.name());
 

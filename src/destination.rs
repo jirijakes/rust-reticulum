@@ -1,42 +1,99 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;
 use crate::encode::{Encode, Write};
 use crate::identity::Identity;
-use crate::packet::DestinationType;
+use crate::packet;
 use crate::sign::Sign;
 
-pub struct Destination<'a> {
+/// 'SINGLE' destination type.
+pub struct Single;
+
+/// 'GROUP' destination type.
+pub struct Group;
+
+/// 'PLAIN' destination type.
+pub struct Plain;
+
+/// 'LINK' destination type.
+pub struct Link;
+
+/// 'IN' direction.
+pub struct In;
+
+/// 'OUT' direction.
+pub struct Out;
+
+mod sealed {
+    pub trait Type {}
+
+    impl Type for super::Single {}
+    impl Type for super::Group {}
+    impl Type for super::Plain {}
+    impl Type for super::Link {}
+
+    pub trait Direction {}
+
+    impl Direction for super::In {}
+    impl Direction for super::Out {}
+}
+
+/// Marker trait for type of [`Destination`].
+pub trait Type: sealed::Type {
+    fn to_destination_type() -> packet::DestinationType;
+}
+
+impl Type for Single {
+    fn to_destination_type() -> packet::DestinationType {
+        packet::DestinationType::Single
+    }
+}
+
+impl Type for Group {
+    fn to_destination_type() -> packet::DestinationType {
+        packet::DestinationType::Group
+    }
+}
+
+impl Type for Plain {
+    fn to_destination_type() -> packet::DestinationType {
+        packet::DestinationType::Plain
+    }
+}
+
+impl Type for Link {
+    fn to_destination_type() -> packet::DestinationType {
+        packet::DestinationType::Link
+    }
+}
+
+pub trait Direction: sealed::Direction {}
+impl Direction for In {}
+impl Direction for Out {}
+
+pub struct Destination<'a, T: Type, D: Direction> {
     identity: &'a Identity,
-    // direction?
-    destination_type: DestinationType,
     app_name: &'a str,
     aspects: &'a str,
     name_hash: [u8; 10],
     hash: [u8; 16],
+    destination_type: PhantomData<T>,
+    direction: PhantomData<D>,
 }
 
-impl<'a> Destination<'a> {
-    pub fn new(
+impl<'a> Destination<'a, Single, In> {
+    pub fn single_in(
         identity: &'a Identity,
-        destination_type: DestinationType,
         app_name: &'a str,
         aspects: &'a str,
-    ) -> Destination<'a> {
-        let name_hash = Self::calculate_name_hash(app_name, aspects);
-        let hash = Self::calculate_hash(&name_hash, identity);
-        Destination {
-            identity,
-            destination_type,
-            app_name,
-            aspects,
-            name_hash,
-            hash,
-        }
+    ) -> Destination<'a, Single, In> {
+        Self::new(identity, app_name, aspects)
     }
 
+    /// Create a signed announcement for this destination.
     pub fn announce(
         &'a self,
         random_hash: &'a [u8; 10],
@@ -61,6 +118,26 @@ impl<'a> Destination<'a> {
             random_hash,
             app_data: None,
             destination: DestinationHash::Type1(&self.hash),
+        }
+    }
+}
+
+impl<'a, T: Type, D: Direction> Destination<'a, T, D> {
+    pub fn new(
+        identity: &'a Identity,
+        app_name: &'a str,
+        aspects: &'a str,
+    ) -> Destination<'a, T, D> {
+        let name_hash = Self::calculate_name_hash(app_name, aspects);
+        let hash = Self::calculate_hash(&name_hash, identity);
+        Destination {
+            identity,
+            app_name,
+            aspects,
+            name_hash,
+            hash,
+            destination_type: PhantomData,
+            direction: PhantomData,
         }
     }
 
@@ -90,8 +167,8 @@ impl<'a> Destination<'a> {
         engine.finalize()[..16].try_into().expect("16 bytes")
     }
 
-    pub fn destination_type(&self) -> &DestinationType {
-        &self.destination_type
+    pub fn destination_type(&self) -> packet::DestinationType {
+        <T as Type>::to_destination_type()
     }
 
     pub fn app_name(&self) -> &str {
