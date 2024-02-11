@@ -21,6 +21,24 @@ impl<'a, I: Interface> Packet<'a, I> {
     pub fn header(&self) -> &Header {
         &self.header
     }
+
+    pub fn from_announce(announce: Announce<'a>) -> Packet<'a, I> {
+        Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: DestinationType::Single,
+                packet_type: PacketType::Announce,
+                hops: 0,
+            },
+            ifac: None,
+            destination: announce.destination,
+            context: 0,
+            data: Payload::Announce(announce),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, I: Interface> Encode for Packet<'a, I> {

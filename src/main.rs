@@ -7,12 +7,14 @@ use ed25519_dalek::SigningKey;
 use env_logger::Env;
 use log::{debug, info, trace, warn};
 use rand_core::OsRng;
+use reticulum::encode::Encode;
+use reticulum::sign::FixedKey;
 use x25519_dalek::StaticSecret;
 
-use reticulum::destination::DestinationHash;
+use reticulum::destination::{Destination, DestinationHash};
 use reticulum::identity::Identity;
 use reticulum::interface::Interface;
-use reticulum::packet::Payload;
+use reticulum::packet::{Packet, Payload};
 
 #[derive(Debug)]
 struct TestInf;
@@ -47,15 +49,24 @@ fn load_identity() -> (Identity, StaticSecret, SigningKey) {
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
 
-    let (identity, _static_key, _sign_key) = load_identity();
+    let (identity, _static_key, sign_key) = load_identity();
+    let sign = FixedKey::new(sign_key);
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
+    let destination = Destination::single_in(&identity, "testing_app", "fruits");
+    let announce = destination.announce(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], None, sign);
+    
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
     // let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
-    let stream = TcpStream::connect("localhost:4998").unwrap();
-
+    let stream = TcpStream::connect("localhost:4242").unwrap();
     let mut stream = reticulum::hdlc::Hdlc::new(stream);
+
+    let packet: Packet<'_, TestInf> = Packet::from_announce(announce);
+    let mut out = Vec::new();
+    let _ = &packet.encode(&mut out);
+    println!("{:?}", out);
+    let _ = stream.write(&out).expect("write");
 
     let mut buf = [0u8; 512];
 

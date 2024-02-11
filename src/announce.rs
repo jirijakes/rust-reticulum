@@ -2,7 +2,11 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey;
 
-use crate::{destination::DestinationHash, encode::{Encode, Write}, identity::Identity};
+use crate::{
+    destination::DestinationHash,
+    encode::{Encode, Write},
+    identity::Identity,
+};
 
 #[derive(Debug)]
 pub struct Announce<'a> {
@@ -18,12 +22,11 @@ pub struct Announce<'a> {
 impl<'a> Encode for Announce<'a> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
         self.public_key.as_bytes().encode(writer)
-            + self.verifying_key.as_bytes().encode(writer)
-            + self.signature.to_bytes().as_slice().encode(writer)
+            + self.verifying_key.to_bytes().as_slice().encode(writer)
             + self.name_hash.encode(writer)
             + self.random_hash.encode(writer)
+            + self.signature.to_bytes().as_slice().encode(writer)
             + self.app_data.encode(writer)
-            + self.destination.encode(writer)
     }
 }
 
@@ -56,5 +59,42 @@ impl<'a> Announce<'a> {
         let x: [u8; 32] = engine.finalize().into();
 
         println!("Validation: {valid:?} {}", hex::encode(&x[..16]));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand_core::*;
+
+    use crate::destination::Destination;
+    use crate::encode::*;
+    use crate::identity::Identity;
+    use crate::interface::Interface;
+    use crate::packet::{Packet, Payload};
+    use crate::parse;
+    use crate::sign::FixedKey;
+
+    #[derive(Debug)]
+    struct TestInf;
+    impl Interface for TestInf {
+        const LENGTH: usize = 2;
+    }
+
+    #[test]
+    fn there_and_back() {
+        let (identity, _, sign_key) = Identity::generate(OsRng);
+        let sign = FixedKey::new(sign_key);
+        let destination = Destination::single_in(&identity, "testing_app", "fruits");
+        let announce = destination.announce(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], None, sign);
+        announce.validate();
+
+        let packet: Packet<'_, TestInf> = Packet::from_announce(announce);
+
+        let mut buf = Vec::new();
+        let _ = packet.encode(&mut buf);
+
+        if let Payload::Announce(ann) = parse::packet::<TestInf>(&buf).unwrap().1.data {
+            ann.validate();
+        }
     }
 }
