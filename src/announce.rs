@@ -1,6 +1,5 @@
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::Signature;
 use sha2::{Digest, Sha256};
-use x25519_dalek::PublicKey;
 
 use crate::{
     destination::DestinationHash,
@@ -10,8 +9,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Announce<'a> {
-    pub public_key: PublicKey,
-    pub verifying_key: VerifyingKey,
+    pub identity: Identity,
     pub signature: Signature,
     pub name_hash: &'a [u8; 10],
     pub random_hash: &'a [u8; 10],
@@ -21,8 +19,7 @@ pub struct Announce<'a> {
 
 impl<'a> Encode for Announce<'a> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
-        self.public_key.as_bytes().encode(writer)
-            + self.verifying_key.to_bytes().as_slice().encode(writer)
+        self.identity.encode(writer)
             + self.name_hash.encode(writer)
             + self.random_hash.encode(writer)
             + self.signature.to_bytes().as_slice().encode(writer)
@@ -42,20 +39,18 @@ impl<'a> Announce<'a> {
             }
         }
 
-        message.extend_from_slice(self.public_key.as_bytes());
-        message.extend_from_slice(self.verifying_key.as_bytes());
+        message.extend_from_slice(self.identity.public_key().as_bytes());
+        message.extend_from_slice(self.identity.verifying_key().as_bytes());
         message.extend_from_slice(self.name_hash);
         message.extend_from_slice(self.random_hash);
         if let Some(data) = self.app_data {
             message.extend_from_slice(data);
         }
-        let valid = self.verifying_key.verify_strict(&message, &self.signature);
-
-        let identity = Identity::new(self.public_key, self.verifying_key);
+        let valid = self.identity.verify(&message, &self.signature);
 
         let mut engine = Sha256::new();
         engine.update(self.name_hash);
-        engine.update(identity.hash());
+        engine.update(self.identity.hash());
         let x: [u8; 32] = engine.finalize().into();
 
         println!("Validation: {valid:?} {}", hex::encode(&x[..16]));

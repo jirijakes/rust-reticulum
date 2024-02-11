@@ -111,8 +111,7 @@ impl<'a> Destination<'a, Single, In> {
         }
 
         Announce {
-            public_key: *self.identity.public_key(),
-            verifying_key: *self.identity.verifying_key(),
+            identity: self.identity.clone(),
             signature: sign.sign(&buf), //sign(digest),
             name_hash: &self.name_hash,
             random_hash,

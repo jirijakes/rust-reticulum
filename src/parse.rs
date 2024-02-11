@@ -14,6 +14,7 @@ use x25519_dalek::PublicKey;
 
 use crate::announce::Announce;
 use crate::destination::DestinationHash;
+use crate::identity::Identity;
 use crate::interface::Interface;
 use crate::packet::{
     DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
@@ -139,8 +140,7 @@ fn announce<'a>(
         Ok((
             input,
             Payload::Announce(Announce {
-                public_key,
-                verifying_key,
+                identity: Identity::new(public_key, verifying_key),
                 signature,
                 name_hash,
                 random_hash,
@@ -169,9 +169,9 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, destination) = match header.header_type {
         HeaderType::Type1 => map(hash, DestinationHash::Type1)(input)?,
-        HeaderType::Type2 => {
-            map(tuple((hash, hash)), |(h1, h2)| DestinationHash::Type2(h1, h2))(input)?
-        }
+        HeaderType::Type2 => map(tuple((hash, hash)), |(h1, h2)| {
+            DestinationHash::Type2(h1, h2)
+        })(input)?,
     };
     let (input, context) = u8(input)?;
     let (input, data) = match header.packet_type {
