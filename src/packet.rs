@@ -207,7 +207,7 @@ mod tests {
                 hops: 0,
             },
             ifac: None,
-            destination: DestinationHash::Type1(&[
+            destination: DestinationHash::Type1([
                 0x6b, 0x9f, 0x66, 0x01, 0x4d, 0x98, 0x53, 0xfa, 0xab, 0x22, 0x0f, 0xba, 0x47, 0xd0,
                 0x27, 0x61,
             ]),
