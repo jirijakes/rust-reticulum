@@ -14,7 +14,7 @@ pub struct Announce<'a> {
     pub name_hash: &'a [u8; 10],
     pub random_hash: &'a [u8; 10],
     pub app_data: Option<&'a [u8]>,
-    pub destination: DestinationHash<'a>,
+    pub destination: DestinationHash,
 }
 
 impl<'a> Encode for Announce<'a> {
@@ -32,10 +32,10 @@ impl<'a> Announce<'a> {
         let mut message = vec![];
         match self.destination {
             DestinationHash::Type1(h) => {
-                message.extend_from_slice(h);
+                message.extend_from_slice(&h);
             }
             DestinationHash::Type2(_, h2) => {
-                message.extend_from_slice(h2);
+                message.extend_from_slice(&h2);
             }
         }
 

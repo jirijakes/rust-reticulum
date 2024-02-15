@@ -4,7 +4,7 @@ use ed25519_dalek::VerifyingKey;
 use nom::bits::bits;
 use nom::branch::alt;
 use nom::bytes::complete::take;
-use nom::combinator::{cond, map, map_opt, rest, success};
+use nom::combinator::{cond, map, map_opt, rest, success, verify};
 use nom::complete::bool;
 use nom::error::{make_error, ErrorKind, ParseError};
 use nom::number::complete::u8;
@@ -86,7 +86,6 @@ fn header(input: &[u8]) -> IResult<&[u8], Header> {
 }
 
 fn hash(input: &[u8]) -> IResult<&[u8], &[u8; 16]> {
-    // let (input, _whatsthat) = u8(input)?;
     let (input, b): (&[u8], _) = take(16usize)(input)?;
     match b.try_into() {
         Ok(b) => Ok((input, b)),
@@ -94,27 +93,33 @@ fn hash(input: &[u8]) -> IResult<&[u8], &[u8; 16]> {
     }
 }
 
-fn path_request(input: &[u8]) -> IResult<&[u8], Payload> {
-    let (input, destination_hash) = hash(input)?;
+fn path_request<'a>(
+    destination: DestinationHash,
+) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
+    move |input| {
+        let (input, destination_hash) = hash(input)?;
 
-    let (input, (transport, tag)) = alt((
-        map(tuple((hash, rest)), |(tr, tag)| {
-            (Some(tr), Some(tag).filter(|t| !t.is_empty()))
-        }),
-        map(rest, |tag: &[u8]| {
-            (None, Some(tag).filter(|t| !t.is_empty()))
-        }),
-        success((None, None)),
-    ))(input)?;
+        let (input, (transport, tag)) = alt((
+            map(
+                tuple((hash, verify(rest, |r: &[u8]| !r.is_empty()))),
+                |(tr, tag)| (Some(tr), Some(tag)),
+            ),
+            map(rest, |tag: &[u8]| {
+                (None, Some(tag).filter(|t| !t.is_empty()))
+            }),
+            success((None, None)),
+        ))(input)?;
 
-    Ok((
-        input,
-        Payload::PathRequest(PathRequest {
-            destination_hash,
-            transport,
-            tag,
-        }),
-    ))
+        Ok((
+            input,
+            Payload::PathRequest(PathRequest {
+                query: destination_hash,
+                transport,
+                tag,
+                destination,
+            }),
+        ))
+    }
 }
 
 fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
@@ -127,7 +132,7 @@ fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
 }
 
 fn announce<'a>(
-    destination: DestinationHash<'a>,
+    destination: DestinationHash,
 ) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
     move |input| {
         let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
@@ -168,9 +173,9 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, destination) = match header.header_type {
-        HeaderType::Type1 => map(hash, DestinationHash::Type1)(input)?,
+        HeaderType::Type1 => map(hash, |h| DestinationHash::Type1(*h))(input)?,
         HeaderType::Type2 => map(tuple((hash, hash)), |(h1, h2)| {
-            DestinationHash::Type2(h1, h2)
+            DestinationHash::Type2(*h1, *h2)
         })(input)?,
     };
     let (input, context) = u8(input)?;
@@ -180,7 +185,7 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
                 header.header_type == HeaderType::Type1
                     && header.propagation_type == PropagationType::Broadcast
                     && header.destination_type == DestinationType::Plain,
-                path_request,
+                path_request(destination),
             ),
             map(rest, Payload::Data),
         ))(input)?,

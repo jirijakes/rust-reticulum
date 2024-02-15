@@ -8,10 +8,11 @@ use env_logger::Env;
 use log::{debug, info, trace, warn};
 use rand_core::OsRng;
 use reticulum::encode::Encode;
+use reticulum::path_request::PathRequest;
 use reticulum::sign::FixedKey;
 use x25519_dalek::StaticSecret;
 
-use reticulum::destination::{Destination, DestinationHash};
+use reticulum::destination::DestinationHash;
 use reticulum::identity::Identity;
 use reticulum::interface::Interface;
 use reticulum::packet::{Packet, Payload};
@@ -54,18 +55,27 @@ fn main() {
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
-    let destination = Destination::single_in(&identity, "testing_app", "fruits");
-    let announce = destination.announce(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], None, sign);
-    
+    let path_request = PathRequest::new_rns(
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        None,
+        None,
+    );
+
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
     // let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
     let stream = TcpStream::connect("localhost:4242").unwrap();
     let mut stream = reticulum::hdlc::Hdlc::new(stream);
 
-    let packet: Packet<'_, TestInf> = Packet::from_announce(announce);
+    let packet: Packet<'_, TestInf> = Packet::from_path_request(path_request);
     let mut out = Vec::new();
     let _ = &packet.encode(&mut out);
-    println!("{:?}", out);
+    println!("{:?}", packet);
+    // println!("{:?}", reticulum::parse::packet::<TestInf>(&out));
+    println!("{:?}", reticulum::parse::packet::<TestInf>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
+    // let _ = stream.write(&out).expect("write");
+
+    return;
+
     let _ = stream.write(&out).expect("write");
 
     let mut buf = [0u8; 512];
@@ -104,7 +114,7 @@ fn main() {
                     Payload::PathRequest(req) => {
                         info!(
                             "Path request: dest:{} trans:{} tag:{}",
-                            hex::encode(req.destination_hash),
+                            hex::encode(req.query),
                             req.transport.map(hex::encode).unwrap_or("N/A".to_string()),
                             req.tag.map(hex::encode).unwrap_or("N/A".to_string())
                         );

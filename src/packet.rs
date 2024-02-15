@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::announce::Announce;
-use crate::destination::DestinationHash;
+use crate::destination::{DestinationHash, RNS_PATH_REQUEST_DESTINATION};
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
 use crate::path_request::PathRequest;
@@ -10,7 +10,7 @@ use crate::path_request::PathRequest;
 pub struct Packet<'a, I: Interface> {
     pub header: Header,
     pub ifac: Option<&'a [u8]>,
-    pub destination: DestinationHash<'a>,
+    pub destination: DestinationHash,
     // TODO: make enum
     pub context: u8,
     pub data: Payload<'a>,
@@ -18,11 +18,29 @@ pub struct Packet<'a, I: Interface> {
 }
 
 impl<'a, I: Interface> Packet<'a, I> {
-    pub fn header(&self) -> &Header {
+    pub const fn header(&self) -> &Header {
         &self.header
     }
 
-    pub fn from_announce(announce: Announce<'a>) -> Packet<'a, I> {
+    pub fn from_path_request(path_request: PathRequest<'a>) -> Packet<'a, I> {
+        Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: RNS_PATH_REQUEST_DESTINATION.destination_type(),
+                packet_type: PacketType::Data,
+                hops: 0,
+            },
+            ifac: None,
+            destination: RNS_PATH_REQUEST_DESTINATION.to_destination_hash(),
+            context: 0,
+            data: Payload::PathRequest(path_request),
+            phantom: PhantomData,
+        }
+    }
+
+    pub const fn from_announce(announce: Announce<'a>) -> Packet<'a, I> {
         Packet {
             header: Header {
                 ifac_flag: IfacFlag::Open,
@@ -195,7 +213,7 @@ mod tests {
             ]),
             context: 0,
             data: Payload::PathRequest(PathRequest {
-                destination_hash: &[
+                query: &[
                     235, 252, 186, 213, 27, 223, 220, 228, 69, 35, 238, 49, 26, 222, 169, 162,
                 ],
                 transport: Some(&[
