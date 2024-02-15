@@ -217,7 +217,6 @@ impl<'a> Destination<'a, Plain, Out, ()> {
             query,
             transport,
             tag,
-            destination: DestinationHash::Type1(self.hash),
         }
     }
 }

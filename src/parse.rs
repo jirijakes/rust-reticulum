@@ -93,33 +93,28 @@ fn hash(input: &[u8]) -> IResult<&[u8], &[u8; 16]> {
     }
 }
 
-fn path_request<'a>(
-    destination: DestinationHash,
-) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
-    move |input| {
-        let (input, destination_hash) = hash(input)?;
+fn path_request(input: &[u8]) -> IResult<&[u8], Payload> {
+    let (input, destination_hash) = hash(input)?;
 
-        let (input, (transport, tag)) = alt((
-            map(
-                tuple((hash, verify(rest, |r: &[u8]| !r.is_empty()))),
-                |(tr, tag)| (Some(tr), Some(tag)),
-            ),
-            map(rest, |tag: &[u8]| {
-                (None, Some(tag).filter(|t| !t.is_empty()))
-            }),
-            success((None, None)),
-        ))(input)?;
+    let (input, (transport, tag)) = alt((
+        map(
+            tuple((hash, verify(rest, |r: &[u8]| !r.is_empty()))),
+            |(tr, tag)| (Some(tr), Some(tag)),
+        ),
+        map(rest, |tag: &[u8]| {
+            (None, Some(tag).filter(|t| !t.is_empty()))
+        }),
+        success((None, None)),
+    ))(input)?;
 
-        Ok((
-            input,
-            Payload::PathRequest(PathRequest {
-                query: destination_hash,
-                transport,
-                tag,
-                destination,
-            }),
-        ))
-    }
+    Ok((
+        input,
+        Payload::PathRequest(PathRequest {
+            query: destination_hash,
+            transport,
+            tag,
+        }),
+    ))
 }
 
 fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
@@ -185,7 +180,7 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
                 header.header_type == HeaderType::Type1
                     && header.propagation_type == PropagationType::Broadcast
                     && header.destination_type == DestinationType::Plain,
-                path_request(destination),
+                path_request,
             ),
             map(rest, Payload::Data),
         ))(input)?,

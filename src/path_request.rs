@@ -1,7 +1,5 @@
-use crate::{
-    destination::{Destination, DestinationHash, Out, Plain, RNS_PATH_REQUEST_DESTINATION},
-    encode::{Encode, Write},
-};
+use crate::destination::{Destination, Out, Plain, RNS_PATH_REQUEST_DESTINATION};
+use crate::encode::{Encode, Write};
 
 #[derive(Debug)]
 pub struct PathRequest<'a> {
@@ -9,7 +7,6 @@ pub struct PathRequest<'a> {
     pub query: &'a [u8; 16],
     pub transport: Option<&'a [u8; 16]>,
     pub tag: Option<&'a [u8]>,
-    pub destination: DestinationHash,
 }
 
 impl<'a> PathRequest<'a> {
