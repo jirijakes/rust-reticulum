@@ -1,28 +1,30 @@
 use std::marker::PhantomData;
 
 use crate::announce::Announce;
+use crate::context::{Context, RnsContext};
 use crate::destination::{DestinationHash, RNS_PATH_REQUEST_DESTINATION};
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
 use crate::path_request::PathRequest;
 
 #[derive(Debug)]
-pub struct Packet<'a, I: Interface> {
+pub struct Packet<'a, I: Interface, C: Context = RnsContext> {
     pub header: Header,
     pub ifac: Option<&'a [u8]>,
     pub destination: DestinationHash,
     // TODO: make enum
     pub context: u8,
     pub data: Payload<'a>,
-    pub phantom: PhantomData<I>,
+    pub interface: PhantomData<I>,
+    pub xcontext: PhantomData<C>,
 }
 
-impl<'a, I: Interface> Packet<'a, I> {
+impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
     pub const fn header(&self) -> &Header {
         &self.header
     }
 
-    pub fn from_path_request(path_request: PathRequest<'a>) -> Packet<'a, I> {
+    pub fn from_path_request(path_request: PathRequest<'a>) -> Packet<'a, I, C> {
         Packet {
             header: Header {
                 ifac_flag: IfacFlag::Open,
@@ -36,11 +38,12 @@ impl<'a, I: Interface> Packet<'a, I> {
             destination: RNS_PATH_REQUEST_DESTINATION.to_destination_hash(),
             context: 0,
             data: Payload::PathRequest(path_request),
-            phantom: PhantomData,
+            interface: PhantomData,
+            xcontext: PhantomData,
         }
     }
 
-    pub const fn from_announce(announce: Announce<'a>) -> Packet<'a, I> {
+    pub const fn from_announce(announce: Announce<'a>) -> Packet<'a, I, C> {
         Packet {
             header: Header {
                 ifac_flag: IfacFlag::Open,
@@ -54,12 +57,13 @@ impl<'a, I: Interface> Packet<'a, I> {
             destination: announce.destination,
             context: 0,
             data: Payload::Announce(announce),
-            phantom: PhantomData,
+            interface: PhantomData,
+            xcontext: PhantomData,
         }
     }
 }
 
-impl<'a, I: Interface> Encode for Packet<'a, I> {
+impl<'a, I: Interface, C: Context> Encode for Packet<'a, I, C> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
         self.header.encode(writer)
             + self.destination.encode(writer)
@@ -223,7 +227,8 @@ mod tests {
                     4, 175, 40, 70, 0, 120, 59, 234, 132, 61, 97, 32, 189, 35, 51, 239,
                 ]),
             }),
-            phantom: PhantomData,
+            interface: PhantomData,
+            xcontext: PhantomData,
         };
         let written = packet.encode(&mut buf);
         let expected = vec![
@@ -328,10 +333,9 @@ mod tests {
         let mut escaped = crate::hdlc::Hdlc::new(vec6);
         let _ = escaped.read_to_end(&mut unescaped);
 
-        if let Ok((_, packet)) = packet::<TestInf>(&unescaped) {
-            if let Payload::Announce(ann) = packet.data {
-                ann.validate();
-            }
+        let packet: Packet<TestInf> = packet(&unescaped).unwrap().1;
+        if let Payload::Announce(ann) = packet.data {
+            ann.validate();
         }
     }
 }

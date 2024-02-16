@@ -13,6 +13,7 @@ use nom::{Err, IResult, Parser};
 use x25519_dalek::PublicKey;
 
 use crate::announce::Announce;
+use crate::context::Context;
 use crate::destination::DestinationHash;
 use crate::identity::Identity;
 use crate::interface::Interface;
@@ -169,7 +170,7 @@ where
     }
 }
 
-pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
+pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'_, I, C>> {
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, destination) = match header.header_type {
@@ -184,7 +185,10 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
             when(
                 header.header_type == HeaderType::Type1
                     && header.propagation_type == PropagationType::Broadcast
-                    && header.destination_type == DestinationType::Plain,
+                    && header.destination_type == DestinationType::Plain
+                    && <C as Context>::path_request_destinations()
+                        .iter()
+                        .any(|d| destination == DestinationHash::Type1(d.hash())),
                 path_request,
             ),
             map(rest, Payload::Data),
@@ -201,7 +205,8 @@ pub fn packet<I: Interface>(input: &[u8]) -> IResult<&[u8], Packet<'_, I>> {
             destination,
             context,
             data,
-            phantom: PhantomData,
+            interface: PhantomData,
+            xcontext: PhantomData,
         },
     ))
 }

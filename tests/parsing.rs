@@ -4,7 +4,9 @@ use std::{
     path::Path,
 };
 
-use reticulum::{interface::Interface, packet::Payload, parse};
+use reticulum::interface::Interface;
+use reticulum::packet::{Packet, Payload};
+use reticulum::parse;
 
 #[derive(Debug)]
 struct TestInf;
@@ -21,7 +23,7 @@ fn path_requests() {
     f.lines().for_each(|line| {
         if let Ok(hex) = line {
             let msg = hex::decode(&hex).expect("decode hex string");
-            let packet = parse::packet::<TestInf>(&msg);
+            let packet: Result<(&[u8], Packet<TestInf>), _> = parse::packet(&msg);
             assert!(packet.is_ok());
             if let Ok((rest, packet)) = packet {
                 assert!(

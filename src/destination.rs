@@ -278,7 +278,7 @@ impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DestinationHash {
     Type1([u8; 16]),
     Type2([u8; 16], [u8; 16]),

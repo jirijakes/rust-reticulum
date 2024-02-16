@@ -88,7 +88,8 @@ mod tests {
         let mut buf = Vec::new();
         let _ = packet.encode(&mut buf);
 
-        if let Payload::Announce(ann) = parse::packet::<TestInf>(&buf).unwrap().1.data {
+        let packet: Packet<TestInf> = parse::packet(&buf).unwrap().1;
+        if let Payload::Announce(ann) = packet.data {
             ann.validate();
         }
     }

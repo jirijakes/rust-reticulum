@@ -7,6 +7,7 @@ use ed25519_dalek::SigningKey;
 use env_logger::Env;
 use log::{debug, info, trace, warn};
 use rand_core::OsRng;
+use reticulum::context::RnsContext;
 use reticulum::encode::Encode;
 use reticulum::path_request::PathRequest;
 use reticulum::sign::FixedKey;
@@ -66,12 +67,12 @@ fn main() {
     let stream = TcpStream::connect("localhost:4242").unwrap();
     let mut stream = reticulum::hdlc::Hdlc::new(stream);
 
-    let packet: Packet<'_, TestInf> = Packet::from_path_request(path_request);
+    let packet: Packet<'_, TestInf, RnsContext> = Packet::from_path_request(path_request);
     let mut out = Vec::new();
     let _ = &packet.encode(&mut out);
     println!("{:?}", packet);
     // println!("{:?}", reticulum::parse::packet::<TestInf>(&out));
-    println!("{:?}", reticulum::parse::packet::<TestInf>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
+    println!("{:?}", reticulum::parse::packet::<TestInf, RnsContext>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
     // let _ = stream.write(&out).expect("write");
 
     return;
@@ -82,7 +83,7 @@ fn main() {
 
     while let Ok(x) = stream.read(&mut buf) {
         trace!("{}", hex::encode(buf.get(0..x).unwrap()));
-        match reticulum::parse::packet::<TestInf>(buf.get(0..x).unwrap()) {
+        match reticulum::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
             Ok((_, packet)) => {
                 debug!(
                     "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {}",
