@@ -1,3 +1,4 @@
+use rand::seq::SliceRandom;
 use rand_core::OsRng;
 
 use reticulum::destination::Destination;
@@ -9,12 +10,39 @@ pub fn main() {
 
     let sign = FixedKey::new(sign_key);
 
-    let destination = Destination::single_in(&identity, "testing_app", "fruits");
+    let destination1 = Destination::single_in(&identity, "announcesample", "fruits");
+    let destination2 = Destination::single_in(&identity, "announcesample", "noble_gases");
 
-    println!("{}", destination.name());
+    let fruits = [
+        "Peach",
+        "Quince",
+        "Date",
+        "Tangerine",
+        "Pomelo",
+        "Carambola",
+        "Grape",
+    ];
 
-    let announce = destination.announce(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], None, sign);
+    let noble_gases = [
+        "Helium",
+        "Neon",
+        "Argon",
+        "Krypton",
+        "Xenon",
+        "Radon",
+        "Oganesson",
+    ];
 
-    println!("{:?}", announce);
-    println!("{:?}", announce.validate());
+    let mut rng = OsRng;
+
+    let fruit = fruits.choose(&mut rng).expect("non empty");
+    let noble_gas = noble_gases.choose(&mut rng).expect("non empty");
+
+    let announce1 = destination1.announce_rnd(&mut rng, Some(fruit.as_bytes()), &sign);
+    let announce2 = destination2.announce_rnd(&mut rng, Some(noble_gas.as_bytes()), &sign);
+
+    println!("{:?}", announce1);
+    announce1.validate();
+    println!("{:?}", announce2);
+    announce2.validate();
 }

@@ -22,6 +22,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;
@@ -143,16 +144,16 @@ impl<'a> Destination<'a, Single, In, Identity> {
     /// Create a signed announcement for this destination.
     pub fn announce(
         &'a self,
-        random_hash: &'a [u8; 10],
-        app_data: Option<&[u8]>,
-        sign: impl Sign,
+        random_hash: [u8; 10],
+        app_data: Option<&'a [u8]>,
+        sign: &impl Sign,
     ) -> Announce<'a> {
         let mut buf = vec![];
         buf.extend_from_slice(&self.hash);
         buf.extend_from_slice(self.identity.public_key().as_bytes());
         buf.extend_from_slice(self.identity.verifying_key().as_bytes());
         buf.extend_from_slice(&self.name_hash);
-        buf.extend_from_slice(random_hash);
+        buf.extend_from_slice(&random_hash);
         if let Some(data) = app_data {
             buf.extend_from_slice(data);
         }
@@ -162,9 +163,21 @@ impl<'a> Destination<'a, Single, In, Identity> {
             signature: sign.sign(&buf), //sign(digest),
             name_hash: &self.name_hash,
             random_hash,
-            app_data: None,
+            app_data,
             destination: DestinationHash::Type1(self.hash),
         }
+    }
+
+    /// Create a signed announcement for this destination, generating random hash using provided RNG.
+    pub fn announce_rnd<R: RngCore>(
+        &'a self,
+        rng: &mut R,
+        app_data: Option<&'a [u8]>,
+        sign: &impl Sign,
+    ) -> Announce<'a> {
+        let mut random_hash = [0u8; 10];
+        rng.fill_bytes(&mut random_hash);
+        self.announce(random_hash, app_data, sign)
     }
 
     pub fn name(&self) -> String {

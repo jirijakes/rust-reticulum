@@ -149,7 +149,7 @@ fn announce<'a>(
                 identity,
                 signature,
                 name_hash,
-                random_hash,
+                random_hash: *random_hash,
                 app_data,
                 destination,
             }),
