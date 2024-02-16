@@ -126,12 +126,17 @@ fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
     Ok((input, array))
 }
 
+fn identity(input: &[u8]) -> IResult<&[u8], Identity> {
+    let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
+    let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
+    Ok((input, Identity::new(public_key, verifying_key)))
+}
+
 fn announce<'a>(
     destination: DestinationHash,
 ) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
     move |input| {
-        let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
-        let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
+        let (input, identity) = identity(input)?;
         let (input, name_hash) = array(input)?;
         let (input, random_hash) = array(input)?;
         let (input, signature) = map(array, |a| a.into())(input)?;
@@ -140,7 +145,7 @@ fn announce<'a>(
         Ok((
             input,
             Payload::Announce(Announce {
-                identity: Identity::new(public_key, verifying_key),
+                identity,
                 signature,
                 name_hash,
                 random_hash,
