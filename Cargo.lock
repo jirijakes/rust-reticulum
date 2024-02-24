@@ -395,6 +395,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "reticulum-examples"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "rand_core",
+ "reticulum-core",
+ "reticulum-net",
+]
+
+[[package]]
 name = "reticulum-net"
 version = "0.1.0"
 dependencies = [

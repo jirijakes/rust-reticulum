@@ -1,9 +1,9 @@
 use rand::seq::SliceRandom;
 use rand_core::OsRng;
 
-use reticulum::destination::Destination;
-use reticulum::identity::Identity;
-use reticulum::sign::FixedKey;
+use reticulum_core::destination::Destination;
+use reticulum_core::identity::Identity;
+use reticulum_core::sign::FixedKey;
 
 pub fn main() {
     let (identity, _, sign_key) = Identity::generate(OsRng);
