@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use rand_core::CryptoRngCore;
@@ -77,7 +77,7 @@ impl Encode for Identity {
 }
 
 impl Debug for Identity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("Identity({})", &hex::encode(self.hash)))
     }
 }

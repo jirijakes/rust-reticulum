@@ -19,8 +19,8 @@
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
 
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::fmt::Debug;
+use core::marker::PhantomData;
 
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
@@ -298,7 +298,7 @@ pub enum DestinationHash {
 }
 
 impl Debug for DestinationHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut tuple = f.debug_tuple("Destination");
         match self {
             DestinationHash::Type1(h) => tuple.field(&hex::encode(h)).finish(),

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use ed25519_dalek::VerifyingKey;
 use nom::bits::bits;

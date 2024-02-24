@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use crate::announce::Announce;
 use crate::context::{Context, RnsContext};
