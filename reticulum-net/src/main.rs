@@ -3,20 +3,21 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::path::Path;
 
-use ed25519_dalek::SigningKey;
 use env_logger::Env;
 use log::{debug, info, trace, warn};
 use rand_core::OsRng;
-use reticulum::context::RnsContext;
-use reticulum::encode::Encode;
-use reticulum::path_request::PathRequest;
-use reticulum::sign::FixedKey;
-use x25519_dalek::StaticSecret;
+use reticulum_core::context::RnsContext;
+use reticulum_core::ed25519_dalek::SigningKey;
+use reticulum_core::encode::Encode;
+use reticulum_core::hdlc::Hdlc;
+use reticulum_core::path_request::PathRequest;
+use reticulum_core::sign::FixedKey;
+use reticulum_core::x25519_dalek::StaticSecret;
 
-use reticulum::destination::DestinationHash;
-use reticulum::identity::Identity;
-use reticulum::interface::Interface;
-use reticulum::packet::{Packet, Payload};
+use reticulum_core::destination::DestinationHash;
+use reticulum_core::identity::Identity;
+use reticulum_core::interface::Interface;
+use reticulum_core::packet::{Packet, Payload};
 
 #[derive(Debug)]
 struct TestInf;
@@ -65,7 +66,7 @@ fn main() {
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
     let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
     // let stream = TcpStream::connect("localhost:4242").unwrap();
-    let mut stream = reticulum::hdlc::Hdlc::new(stream);
+    let mut stream = Hdlc::new(stream);
 
     // let packet: Packet<'_, TestInf, RnsContext> = Packet::from_path_request(path_request);
     // let mut out = Vec::new();
@@ -83,7 +84,7 @@ fn main() {
 
     while let Ok(x) = stream.read(&mut buf) {
         trace!("{}", hex::encode(buf.get(0..x).unwrap()));
-        match reticulum::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
+        match reticulum_core::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
             Ok((_, packet)) => {
                 debug!(
                     "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {}",
@@ -125,9 +126,9 @@ fn main() {
                     }
                 }
             }
-            Err(nom::Err::Error(e)) => {
-                warn!("Problem: {:?} {}", e.code, hex::encode(e.input));
-            }
+            // Err(nom::Err::Error(e)) => {
+            // warn!("Problem: {:?} {}", e.code, hex::encode(e.input));
+            // }
             Err(e) => {
                 warn!("Problem: {e:?}");
             }

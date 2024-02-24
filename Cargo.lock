@@ -380,12 +380,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
-name = "reticulum"
+name = "reticulum-core"
 version = "0.1.0"
 dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
- "env_logger",
  "hex",
  "log",
  "nom",
@@ -393,6 +392,17 @@ dependencies = [
  "rand_core",
  "sha2",
  "x25519-dalek",
+]
+
+[[package]]
+name = "reticulum-net"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "hex",
+ "log",
+ "rand_core",
+ "reticulum-core",
 ]
 
 [[package]]

@@ -1,3 +1,6 @@
+pub use ed25519_dalek;
+pub use x25519_dalek;
+
 pub mod announce;
 pub mod destination;
 pub mod encode;
