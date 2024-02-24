@@ -56,28 +56,28 @@ fn main() {
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
-    let path_request = PathRequest::new_rns(
-        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        None,
-        None,
-    );
+    // let path_request = PathRequest::new_rns(
+    //     &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    //     None,
+    //     None,
+    // );
 
     // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
-    // let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
-    let stream = TcpStream::connect("localhost:4242").unwrap();
+    let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
+    // let stream = TcpStream::connect("localhost:4242").unwrap();
     let mut stream = reticulum::hdlc::Hdlc::new(stream);
 
-    let packet: Packet<'_, TestInf, RnsContext> = Packet::from_path_request(path_request);
-    let mut out = Vec::new();
-    let _ = &packet.encode(&mut out);
-    println!("{:?}", packet);
+    // let packet: Packet<'_, TestInf, RnsContext> = Packet::from_path_request(path_request);
+    // let mut out = Vec::new();
+    // let _ = &packet.encode(&mut out);
+    // println!("{:?}", packet);
     // println!("{:?}", reticulum::parse::packet::<TestInf>(&out));
-    println!("{:?}", reticulum::parse::packet::<TestInf, RnsContext>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
+    // println!("{:?}", reticulum::parse::packet::<TestInf, RnsContext>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
     // let _ = stream.write(&out).expect("write");
 
-    return;
+    // return;
 
-    let _ = stream.write(&out).expect("write");
+    // let _ = stream.write(&out).expect("write");
 
     let mut buf = [0u8; 512];
 
