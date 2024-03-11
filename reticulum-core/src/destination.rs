@@ -19,14 +19,12 @@
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
 
-use core::fmt::Debug;
 use core::marker::PhantomData;
 
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;
-use crate::encode::{Encode, Write};
 use crate::identity::Identity;
 use crate::packet;
 use crate::path_request::PathRequest;
@@ -159,12 +157,12 @@ impl<'a> Destination<'a, Single, In, Identity> {
         }
 
         Announce {
-            identity: self.identity.clone(),
+            identity: *self.identity,
             signature: sign.sign(&buf), //sign(digest),
             name_hash: &self.name_hash,
             random_hash,
             app_data,
-            destination: DestinationHash::Type1(self.hash),
+            destination: self.hash,
         }
     }
 
@@ -282,39 +280,7 @@ impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
         self.hash
     }
 
-    pub const fn to_destination_hash(&self) -> DestinationHash {
-        DestinationHash::Type1(self.hash())
-    }
-
     pub const fn aspects(&self) -> &str {
         self.aspects
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DestinationHash {
-    Type1([u8; 16]),
-    Type2([u8; 16], [u8; 16]),
-}
-
-impl Debug for DestinationHash {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut tuple = f.debug_tuple("Destination");
-        match self {
-            DestinationHash::Type1(h) => tuple.field(&hex::encode(h)).finish(),
-            DestinationHash::Type2(h1, h2) => tuple
-                .field(&hex::encode(h1))
-                .field(&hex::encode(h2))
-                .finish(),
-        }
-    }
-}
-
-impl Encode for DestinationHash {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
-        match self {
-            DestinationHash::Type1(h) => h.encode(writer),
-            DestinationHash::Type2(h1, h2) => h1.encode(writer) + h2.encode(writer),
-        }
     }
 }

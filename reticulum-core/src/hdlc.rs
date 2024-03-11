@@ -1,9 +1,11 @@
 use std::io::{Read, Result, Write};
+use std::net::TcpStream;
 
 const FRAME_BOUNDARY: u8 = 0x7e;
 const ESCAPE_BYTE: u8 = 0x7d;
 const FLIP_MASK: u8 = 0b00100000;
 
+#[derive(Clone)]
 pub struct Hdlc<I> {
     inner: I,
     escaping: bool,
@@ -22,13 +24,24 @@ impl<I> Hdlc<I> {
     }
 }
 
+impl Hdlc<TcpStream> {
+    pub fn try_clone(&self) -> std::io::Result<Hdlc<TcpStream>> {
+        Ok(Hdlc {
+            inner: self.inner.try_clone()?,
+            escaping: self.escaping,
+            started: self.started,
+            finished: self.finished,
+        })
+    }
+}
+
 impl<W: Write> Write for Hdlc<W> {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let _ = self.inner.write(&[FRAME_BOUNDARY])?;
 
         for b in buf {
             if *b == FRAME_BOUNDARY || *b == ESCAPE_BYTE {
-		let _ = self.inner.write(&[ESCAPE_BYTE, *b ^ FLIP_MASK])?;
+                let _ = self.inner.write(&[ESCAPE_BYTE, *b ^ FLIP_MASK])?;
             } else {
                 let _ = self.inner.write(&[*b])?;
             }

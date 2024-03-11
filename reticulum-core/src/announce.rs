@@ -1,11 +1,8 @@
 use ed25519_dalek::Signature;
 use sha2::{Digest, Sha256};
 
-use crate::{
-    destination::DestinationHash,
-    encode::{Encode, Write},
-    identity::Identity,
-};
+use crate::encode::{Encode, Write};
+use crate::identity::Identity;
 
 #[derive(Debug)]
 pub struct Announce<'a> {
@@ -14,7 +11,7 @@ pub struct Announce<'a> {
     pub name_hash: &'a [u8; 10],
     pub random_hash: [u8; 10],
     pub app_data: Option<&'a [u8]>,
-    pub destination: DestinationHash,
+    pub destination: [u8; 16],
 }
 
 impl<'a> Encode for Announce<'a> {
@@ -30,15 +27,7 @@ impl<'a> Encode for Announce<'a> {
 impl<'a> Announce<'a> {
     pub fn validate(&self) {
         let mut message = vec![];
-        match self.destination {
-            DestinationHash::Type1(h) => {
-                message.extend_from_slice(&h);
-            }
-            DestinationHash::Type2(_, h2) => {
-                message.extend_from_slice(&h2);
-            }
-        }
-
+        message.extend_from_slice(&self.destination);
         message.extend_from_slice(self.identity.public_key().as_bytes());
         message.extend_from_slice(self.identity.verifying_key().as_bytes());
         message.extend_from_slice(self.name_hash);

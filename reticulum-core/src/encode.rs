@@ -28,6 +28,12 @@ impl<const N: usize> Encode for &[u8; N] {
     }
 }
 
+impl<const N: usize> Encode for [u8; N] {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        writer.write(self.as_slice())
+    }
+}
+
 impl<'a> Encode for &'a [u8] {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
         writer.write(self)

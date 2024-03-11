@@ -14,7 +14,6 @@ use x25519_dalek::PublicKey;
 
 use crate::announce::Announce;
 use crate::context::Context;
-use crate::destination::DestinationHash;
 use crate::identity::Identity;
 use crate::interface::Interface;
 use crate::packet::{
@@ -133,9 +132,7 @@ fn identity(input: &[u8]) -> IResult<&[u8], Identity> {
     Ok((input, Identity::new(public_key, verifying_key)))
 }
 
-fn announce<'a>(
-    destination: DestinationHash,
-) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
+fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
     move |input| {
         let (input, identity) = identity(input)?;
         let (input, name_hash) = array(input)?;
@@ -173,12 +170,12 @@ where
 pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'_, I, C>> {
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
-    let (input, destination) = match header.header_type {
-        HeaderType::Type1 => map(hash, |h| DestinationHash::Type1(*h))(input)?,
-        HeaderType::Type2 => map(tuple((hash, hash)), |(h1, h2)| {
-            DestinationHash::Type2(*h1, *h2)
-        })(input)?,
+    let (input, transport_id) = if header.header_type == HeaderType::Type2 {
+        map(hash, |h| Some(*h))(input)?
+    } else {
+        success(None)(input)?
     };
+    let (input, destination) = map(hash, |h| *h)(input)?;
     let (input, context) = u8(input)?;
     let (input, data) = match header.packet_type {
         PacketType::Data => alt((
@@ -188,7 +185,7 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
                     && header.destination_type == DestinationType::Plain
                     && <C as Context>::path_request_destinations()
                         .iter()
-                        .any(|d| destination == DestinationHash::Type1(d.hash())),
+                        .any(|d| destination == d.hash()),
                 path_request,
             ),
             map(rest, Payload::Data),
@@ -203,6 +200,7 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
             header,
             ifac,
             destination,
+            transport_id,
             context,
             data,
             interface: PhantomData,

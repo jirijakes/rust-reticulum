@@ -7,7 +7,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::encode::Encode;
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Identity {
     public_key: PublicKey,
     verifying_key: VerifyingKey,

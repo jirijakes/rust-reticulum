@@ -1,29 +1,25 @@
-use std::fs::File;
-use std::io::prelude::*;
-use std::net::TcpStream;
-use std::path::Path;
+pub mod tcp;
 
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::thread;
+
+use core::time;
 use env_logger::Env;
-use log::{debug, info, trace, warn};
+use log::info;
 use rand_core::OsRng;
+
 use reticulum_core::context::RnsContext;
+use reticulum_core::destination::Destination;
 use reticulum_core::ed25519_dalek::SigningKey;
-use reticulum_core::encode::Encode;
-use reticulum_core::hdlc::Hdlc;
-use reticulum_core::path_request::PathRequest;
+use reticulum_core::identity::Identity;
+use reticulum_core::packet::Packet;
 use reticulum_core::sign::FixedKey;
 use reticulum_core::x25519_dalek::StaticSecret;
+use reticulum_core::{PrintPackets, TestInf};
 
-use reticulum_core::destination::DestinationHash;
-use reticulum_core::identity::Identity;
-use reticulum_core::interface::Interface;
-use reticulum_core::packet::{Packet, Payload};
-
-#[derive(Debug)]
-struct TestInf;
-impl Interface for TestInf {
-    const LENGTH: usize = 2;
-}
+use crate::tcp::Reticulum;
 
 fn load_identity() -> (Identity, StaticSecret, SigningKey) {
     let path = Path::new("reticulum_identity");
@@ -57,82 +53,28 @@ fn main() {
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
+    let mut reticulum = Reticulum::tcp_std(PrintPackets);
+
+    thread::sleep(time::Duration::from_secs(20));
+
+    let destination = Destination::single_in(&identity, "hello", "hello");
+    let announce = destination.announce_rnd(&mut OsRng, Some(b"rust-reticulum"), &sign);
+    let packet = Packet::<TestInf, RnsContext>::from_announce(announce);
+    reticulum.broadcast(&packet);
+
     // let path_request = PathRequest::new_rns(
-    //     &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    //     &[
+    //         0x02, 0x9f, 0x61, 0x43, 0xa3, 0x4b, 0xd3, 0x44, 0x93, 0x95, 0x86, 0xa4, 0x79, 0x17,
+    //         0x5c, 0x58,
+    //     ],
     //     None,
-    //     None,
+    //     Some(&[1, 2, 3]),
     // );
+    // let packet = Packet::<TestInf, RnsContext>::from_path_request(path_request);
+    // sendem.send(&packet);
+    // });
 
-    // let mut stream = TcpStream::connect("amsterdam.connect.reticulum.network:4965").unwrap();
-    let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
-    // let stream = TcpStream::connect("localhost:4242").unwrap();
-    let mut stream = Hdlc::new(stream);
+    let _ = reticulum.handle.join();
 
-    // let packet: Packet<'_, TestInf, RnsContext> = Packet::from_path_request(path_request);
-    // let mut out = Vec::new();
-    // let _ = &packet.encode(&mut out);
-    // println!("{:?}", packet);
-    // println!("{:?}", reticulum::parse::packet::<TestInf>(&out));
-    // println!("{:?}", reticulum::parse::packet::<TestInf, RnsContext>(&hex::decode("08006b9f66014d9853faab220fba47d0276100b359333603b524aa703e88e2ce02300f5c097fa2f329356a48b6da9cdba506609d88e6f1a7d9e6c644ee592359e6f77f").unwrap()));
-    // let _ = stream.write(&out).expect("write");
-
-    // return;
-
-    // let _ = stream.write(&out).expect("write");
-
-    let mut buf = [0u8; 512];
-
-    while let Ok(x) = stream.read(&mut buf) {
-        trace!("{}", hex::encode(buf.get(0..x).unwrap()));
-        match reticulum_core::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
-            Ok((_, packet)) => {
-                debug!(
-                    "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {}",
-                    packet.header().ifac_flag,
-                    packet.header().header_type,
-                    packet.header().propagation_type,
-                    packet.header().destination_type,
-                    packet.header().packet_type,
-                    packet.header().hops,
-                    match packet.destination {
-                        DestinationHash::Type1(h) => hex::encode(h).to_string(),
-                        DestinationHash::Type2(h1, h2) =>
-                            format!("{} → {}", hex::encode(h1), hex::encode(h2)),
-                    }
-                );
-
-                match packet.data {
-                    Payload::Announce(ann) => {
-                        info!(
-                            "Announce: name:{} rnd:{} data:[{}]",
-                            hex::encode(ann.name_hash),
-                            hex::encode(ann.random_hash),
-                            ann.app_data
-                                .map(|b| String::from_utf8_lossy(b).to_string())
-                                .unwrap_or("N/A".to_string())
-                        );
-                        ann.validate();
-                    }
-                    Payload::PathRequest(req) => {
-                        info!(
-                            "Path request: dest:{} trans:{} tag:{}",
-                            hex::encode(req.query),
-                            req.transport.map(hex::encode).unwrap_or("N/A".to_string()),
-                            req.tag.map(hex::encode).unwrap_or("N/A".to_string())
-                        );
-                    }
-                    _ => {
-                        println!("Other: {packet:?}");
-                    }
-                }
-            }
-            // Err(nom::Err::Error(e)) => {
-            // warn!("Problem: {:?} {}", e.code, hex::encode(e.input));
-            // }
-            Err(e) => {
-                warn!("Problem: {e:?}");
-            }
-        }
-        // println!("{:?}", String::from_utf8_lossy(a.unwrap().1.data));
-    }
+    println!("Bye.");
 }

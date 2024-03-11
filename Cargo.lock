@@ -398,6 +398,7 @@ dependencies = [
 name = "reticulum-examples"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "rand",
  "rand_core",
  "reticulum-core",

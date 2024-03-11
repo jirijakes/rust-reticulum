@@ -10,5 +10,6 @@ reticulum-core = { path = "../reticulum-core" }
 reticulum-net = { path = "../reticulum-net" }
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 rand = "0.8.5"
+hex = "0.4.3"
 
 [dev-dependencies]

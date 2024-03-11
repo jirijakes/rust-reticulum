@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::announce::Announce;
 use crate::context::{Context, RnsContext};
-use crate::destination::{DestinationHash, RNS_PATH_REQUEST_DESTINATION};
+use crate::destination::RNS_PATH_REQUEST_DESTINATION;
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
 use crate::path_request::PathRequest;
@@ -11,7 +11,8 @@ use crate::path_request::PathRequest;
 pub struct Packet<'a, I: Interface, C: Context = RnsContext> {
     pub header: Header,
     pub ifac: Option<&'a [u8]>,
-    pub destination: DestinationHash,
+    pub destination: [u8; 16],
+    pub transport_id: Option<[u8; 16]>,
     // TODO: make enum
     pub context: u8,
     pub data: Payload<'a>,
@@ -35,7 +36,8 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
                 hops: 0,
             },
             ifac: None,
-            destination: RNS_PATH_REQUEST_DESTINATION.to_destination_hash(),
+            destination: RNS_PATH_REQUEST_DESTINATION.hash(),
+            transport_id: None,
             context: 0,
             data: Payload::PathRequest(path_request),
             interface: PhantomData,
@@ -55,6 +57,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             },
             ifac: None,
             destination: announce.destination,
+            transport_id: None, // TODO: For rebroadcasting, this will be filled in.
             context: 0,
             data: Payload::Announce(announce),
             interface: PhantomData,
@@ -66,6 +69,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
 impl<'a, I: Interface, C: Context> Encode for Packet<'a, I, C> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
         self.header.encode(writer)
+            + self.transport_id.encode(writer)
             + self.destination.encode(writer)
             + self.context.encode(writer)
             + self.data.encode(writer)
@@ -211,10 +215,11 @@ mod tests {
                 hops: 0,
             },
             ifac: None,
-            destination: DestinationHash::Type1([
+            destination: [
                 0x6b, 0x9f, 0x66, 0x01, 0x4d, 0x98, 0x53, 0xfa, 0xab, 0x22, 0x0f, 0xba, 0x47, 0xd0,
                 0x27, 0x61,
-            ]),
+            ],
+            transport_id: None,
             context: 0,
             data: Payload::PathRequest(PathRequest {
                 query: &[
