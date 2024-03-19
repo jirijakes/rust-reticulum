@@ -15,6 +15,7 @@ pub mod encode;
 pub mod hdlc;
 pub mod identity;
 pub mod interface;
+pub mod link_request;
 pub mod packet;
 pub mod parse;
 pub mod path_request;

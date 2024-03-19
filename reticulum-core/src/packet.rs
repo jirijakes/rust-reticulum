@@ -5,6 +5,7 @@ use crate::context::{Context, RnsContext};
 use crate::destination::RNS_PATH_REQUEST_DESTINATION;
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
+use crate::link_request::LinkRequest;
 use crate::path_request::PathRequest;
 
 #[derive(Debug)]
@@ -123,6 +124,7 @@ impl Encode for Header {
 pub enum Payload<'a> {
     Announce(Announce<'a>),
     PathRequest(PathRequest<'a>),
+    LinkRequest(LinkRequest),
     Data(&'a [u8]),
 }
 
@@ -131,6 +133,7 @@ impl<'a> Encode for Payload<'a> {
         match self {
             Payload::Announce(a) => a.encode(writer),
             Payload::PathRequest(r) => r.encode(writer),
+            Payload::LinkRequest(r) => todo!(),
             Payload::Data(d) => d.encode(writer),
         }
     }

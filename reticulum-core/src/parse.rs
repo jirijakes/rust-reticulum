@@ -10,12 +10,14 @@ use nom::error::{make_error, ErrorKind, ParseError};
 use nom::number::complete::u8;
 use nom::sequence::tuple;
 use nom::{Err, IResult, Parser};
+use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey;
 
 use crate::announce::Announce;
 use crate::context::Context;
 use crate::identity::Identity;
 use crate::interface::Interface;
+use crate::link_request::LinkRequest;
 use crate::packet::{
     DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
 };
@@ -154,6 +156,23 @@ fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u
     }
 }
 
+/// Parser for Link Request for a link with `id` (derived from packet).
+fn link_request<'a>(id: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+    move |input| {
+        let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
+        let (input, sig_public_key) = map(array, |a| PublicKey::from(*a))(input)?;
+
+        Ok((
+            input,
+            Payload::LinkRequest(LinkRequest {
+                id,
+                public_key,
+                sig_public_key,
+            }),
+        ))
+    }
+}
+
 pub fn when<I, O, E: ParseError<I>, F>(b: bool, mut f: F) -> impl FnMut(I) -> IResult<I, O, E>
 where
     F: Parser<I, O, E>,
@@ -168,6 +187,9 @@ where
 }
 
 pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'_, I, C>> {
+    let mut packet_hash = Sha256::new();
+    packet_hash.update([input[0] & 0b00001111]);
+
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, transport_id) = if header.header_type == HeaderType::Type2 {
@@ -175,6 +197,9 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
     } else {
         success(None)(input)?
     };
+
+    packet_hash.update(input);
+
     let (input, destination) = map(hash, |h| *h)(input)?;
     let (input, context) = u8(input)?;
     let (input, data) = match header.packet_type {
@@ -191,7 +216,12 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
             map(rest, Payload::Data),
         ))(input)?,
         PacketType::Announce => announce(destination)(input)?,
-        PacketType::LinkRequest => todo!(),
+        PacketType::LinkRequest => {
+            let link_id = packet_hash.finalize().as_slice()[..16]
+                .try_into()
+                .expect("16 bytes");
+            link_request(link_id)(input)?
+        }
         PacketType::Proof => todo!(),
     };
     Ok((
