@@ -17,7 +17,7 @@ use reticulum_core::identity::Identity;
 use reticulum_core::packet::Packet;
 use reticulum_core::sign::FixedKey;
 use reticulum_core::x25519_dalek::StaticSecret;
-use reticulum_core::{parse, PrintPackets, TestInf};
+use reticulum_core::{PrintPackets, TestInf};
 
 use crate::tcp::Reticulum;
 
@@ -48,25 +48,14 @@ fn load_identity() -> (Identity, StaticSecret, SigningKey) {
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
 
-    let s = hex::decode("020077b65c2bc324a2fe1d6d7520ae53f17300eeb5be3cbdee6c56d23ca05cfce5342feaeb4bf2b3e54ab5defcf0c2706dc027a8410f9a44306cba01f58937610c31d4844cb84e86505c3ed3fb477d036965c8").unwrap();
-
-    // let s = hex::decode("0c0060c1b9a35ac4bdc23c0977b38d5c72cefe23dc51f4e9109764e80f60553164079df7ee32dac956d3c3e71b2cb37a37c9b2062186ce5eee6fae92a941322c4811b5b4b672badcfb3789a5a2151da3e8764a").unwrap();
-
-    // let s = hex::decode("0c0060c1b9a35ac4bdc23c0977b38d5c72ce003d5af8d75fe481fcef9291da2d22fec967285bc570db637dcb6ed16788bb14bd58a8f3fd5d24bbc0aa06254184405b9bc40eebf9c4d814f7a0fac33d6d75daeb").unwrap();
-
-    let x = parse::packet::<TestInf, RnsContext>(&s);
-    println!("{x:02x?}");
-
-    return;
-
     let (identity, _static_key, sign_key) = load_identity();
-    let sign = FixedKey::new(sign_key);
+    let sign = FixedKey::new(sign_key.clone());
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
-    let mut reticulum = Reticulum::tcp_std(PrintPackets);
+    let mut reticulum = Reticulum::tcp_std(PrintPackets(identity, sign_key));
 
-    thread::sleep(time::Duration::from_secs(20));
+    thread::sleep(time::Duration::from_secs(2));
 
     let destination = Destination::single_in(&identity, "hello", "hello");
     let announce = destination.announce_rnd(&mut OsRng, Some(b"rust-reticulum"), &sign);

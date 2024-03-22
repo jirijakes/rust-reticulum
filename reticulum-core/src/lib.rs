@@ -1,11 +1,7 @@
 use std::io::Write;
 use std::net::TcpStream;
 
-use announce::Announce;
 pub use ed25519_dalek;
-use encode::Encode;
-use hdlc::Hdlc;
-use path_request::PathRequest;
 pub use x25519_dalek;
 
 pub mod announce;
@@ -21,11 +17,22 @@ pub mod parse;
 pub mod path_request;
 pub mod sign;
 
+use announce::Announce;
 use context::{Context, RnsContext};
+use ed25519_dalek::ed25519::signature::Signer;
+use ed25519_dalek::SigningKey;
+use encode::Encode;
+use hdlc::Hdlc;
+use identity::Identity;
 use interface::Interface;
+use link_request::LinkRequest;
 use packet::Packet;
+use path_request::PathRequest;
+use sign::Sign;
 
-pub trait OnPacket<I: Interface, C: Context> {
+pub trait OnPacket<I: Interface, C: Context>: Sign {
+    fn identity(&self) -> &Identity;
+
     fn on_packet(&self, packet: &Packet<I, C>) {
         let _ = packet;
     }
@@ -36,6 +43,11 @@ pub trait OnPacket<I: Interface, C: Context> {
 
     fn on_path_request(&self, path_request: &PathRequest) {
         let _ = path_request;
+    }
+
+    fn on_link_request(&self, link_request: &LinkRequest) -> Option<Vec<u8>> {
+        let _ = link_request;
+        None
     }
 }
 
@@ -56,12 +68,20 @@ impl OnSend<TestInf, RnsContext> for TcpSend {
         let mut out = Vec::new();
         let _ = &packet.encode(&mut out);
 
+        log::trace!("OUT: {}", hex::encode(&out));
+
         let _ = self.0.write(&out).expect("successfully written bytes");
         self.0.flush().expect("successfully flushed");
     }
 }
 
-pub struct PrintPackets;
+pub struct PrintPackets(pub Identity, pub SigningKey);
+
+impl Sign for PrintPackets {
+    fn sign(&self, message: &[u8]) -> ed25519_dalek::Signature {
+        self.1.sign(message)
+    }
+}
 
 impl OnPacket<TestInf, RnsContext> for PrintPackets {
     fn on_packet(&self, packet: &Packet<TestInf, RnsContext>) {
@@ -96,5 +116,25 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
             req.transport.map(hex::encode).unwrap_or("N/A".to_string()),
             req.tag.map(hex::encode).unwrap_or("N/A".to_string())
         );
+    }
+
+    fn on_link_request(&self, link_request: &LinkRequest) -> Option<Vec<u8>> {
+        log::info!("Link request: id:{}", hex::encode(link_request.id));
+
+        let message = [
+            link_request.id.as_slice(),
+            self.identity().public_key().as_bytes(),
+            self.identity().verifying_key().as_bytes(),
+        ]
+        .concat();
+
+        let mut proof = self.sign(&message).to_vec();
+        proof.append(&mut self.identity().public_key().to_bytes().to_vec());
+
+        Some(proof)
+    }
+
+    fn identity(&self) -> &Identity {
+        &self.0
     }
 }

@@ -65,6 +65,27 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             xcontext: PhantomData,
         }
     }
+
+    // TODO: Pass signature + pub key?
+    pub const fn link_proof(link_id: [u8; 16], s: &'a [u8]) -> Packet<'a, I, C> {
+        Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: DestinationType::Link,
+                packet_type: PacketType::Proof,
+                hops: 0,
+            },
+            ifac: None,
+            destination: link_id,
+            transport_id: None,
+            context: 0xFF,
+            data: Payload::Data(s),
+            interface: PhantomData,
+            xcontext: PhantomData,
+        }
+    }
 }
 
 impl<'a, I: Interface, C: Context> Encode for Packet<'a, I, C> {

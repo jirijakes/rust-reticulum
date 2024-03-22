@@ -28,8 +28,10 @@ where
     R: OnPacket<TestInf, RnsContext> + Send + 'static,
 {
     pub fn tcp_std(receive: R) -> Self {
-        let stream = TcpStream::connect("betweentheborders.com:4242").unwrap();
+        let stream = TcpStream::connect("localhost:4242").unwrap();
         let mut stream = Hdlc::new(stream);
+
+        let mut out = TcpSend(stream.try_clone().unwrap());
 
         let send = TcpSend(stream.try_clone().unwrap());
 
@@ -37,7 +39,7 @@ where
             let mut buf = [0u8; 512];
 
             while let Ok(x) = stream.read(&mut buf) {
-                log::trace!("{}", hex::encode(buf.get(0..x).unwrap()));
+                log::trace!("IN: {}", hex::encode(buf.get(0..x).unwrap()));
                 match reticulum_core::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
                     Ok((_, packet)) => {
                         receive.on_packet(&packet);
@@ -49,6 +51,11 @@ where
                             }
                             Payload::PathRequest(req) => {
                                 receive.on_path_request(&req);
+                            }
+                            Payload::LinkRequest(req) => {
+                                if let Some(r) = receive.on_link_request(&req) {
+                                    out.send(&Packet::link_proof(req.id, &r));
+                                }
                             }
                             _ => {
                                 println!("Other: {packet:?}");
