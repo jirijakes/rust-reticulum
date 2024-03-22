@@ -18,7 +18,7 @@ impl<'a> Encode for Announce<'a> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
         self.identity.encode(writer)
             + self.name_hash.encode(writer)
-            + (&self.random_hash).encode(writer)
+            + self.random_hash.encode(writer)
             + self.signature.to_bytes().as_slice().encode(writer)
             + self.app_data.encode(writer)
     }
