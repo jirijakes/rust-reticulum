@@ -4,11 +4,9 @@ use rand_core::OsRng;
 use sha2::Sha256;
 use x25519_dalek::PublicKey;
 
-use crate::{
-    fernet::Fernet,
-    identity::Identity,
-    sign::{Dh, Sign},
-};
+use crate::fernet::Fernet;
+use crate::identity::Identity;
+use crate::sign::{Dh, Sign};
 
 pub struct Link {
     id: LinkId,
@@ -22,7 +20,7 @@ impl Link {
         self.fernet.decrypt(ciphertext, buf)
     }
 
-    pub fn id(&self) -> &LinkId {
+    pub const fn link_id(&self) -> &LinkId {
         &self.id
     }
 }
@@ -93,7 +91,7 @@ impl LinkRequest {
     }
 
     /// Returns ID of the link that is subject to this request.
-    pub fn link_id(&self) -> LinkId {
+    pub const fn link_id(&self) -> LinkId {
         self.id
     }
 }
@@ -131,6 +129,10 @@ pub struct LinkProof([u8; LinkProof::BYTE_SIZE]);
 impl LinkProof {
     pub const fn as_bytes(&self) -> &[u8; Self::BYTE_SIZE] {
         &self.0
+    }
+
+    pub const fn to_bytes(&self) -> [u8; Self::BYTE_SIZE] {
+        self.0
     }
 
     pub const BYTE_SIZE: usize = Signature::BYTE_SIZE + PUBLIC_KEY_LENGTH;

@@ -113,13 +113,13 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
     }
 
     fn on_link_established(&self, link: &Link) {
-        log::info!("Link established: id={}", hex::encode(link.id().as_bytes()));
+        log::info!("Link established: id={}", hex::encode(link.link_id().as_bytes()));
     }
 
     fn on_link_message(&self, link: &Link, message: &[u8]) {
         log::info!(
             "Message from link id={}: {:?}",
-            hex::encode(link.id().as_bytes()),
+            hex::encode(link.link_id().as_bytes()),
             core::str::from_utf8(message)
         );
     }
