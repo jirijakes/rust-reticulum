@@ -1,10 +1,14 @@
-use ed25519_dalek::VerifyingKey;
+use ed25519_dalek::{Signature, VerifyingKey, PUBLIC_KEY_LENGTH};
 use hkdf::Hkdf;
 use rand_core::OsRng;
 use sha2::Sha256;
 use x25519_dalek::PublicKey;
 
-use crate::{fernet::Fernet, sign::Dh};
+use crate::{
+    fernet::Fernet,
+    identity::Identity,
+    sign::{Dh, Sign},
+};
 
 pub struct Link {
     id: [u8; 16],
@@ -53,6 +57,40 @@ impl LinkRequest {
             fernet,
         }
     }
+
+    /// Generates a signed proof that the link request was received by `identity`.
+    pub fn prove<S: Sign>(&self, identity: &Identity, secrets: &S) -> LinkProof {
+        const M1: usize = 16;
+        const M2: usize = M1 + PUBLIC_KEY_LENGTH;
+        const M3: usize = M2 + PUBLIC_KEY_LENGTH;
+
+        let mut message = [0u8; M3];
+
+        message[0..M1].copy_from_slice(&self.id);
+        message[M1..M2].copy_from_slice(identity.public_key().as_bytes());
+        message[M2..M3].copy_from_slice(identity.verifying_key().as_bytes());
+
+        const P1: usize = Signature::BYTE_SIZE;
+        const P2: usize = P1 + PUBLIC_KEY_LENGTH;
+
+        let mut proof = [0u8; P2];
+
+        proof[0..P1].copy_from_slice(&secrets.sign(&message).to_bytes());
+        proof[P1..P2].copy_from_slice(identity.public_key().as_bytes());
+
+        LinkProof(proof)
+    }
+}
+
+/// Signed proof that link request was received.
+pub struct LinkProof([u8; LinkProof::BYTE_SIZE]);
+
+impl LinkProof {
+    pub const fn as_bytes(&self) -> &[u8; Self::BYTE_SIZE] {
+        &self.0
+    }
+
+    pub const BYTE_SIZE: usize = Signature::BYTE_SIZE + PUBLIC_KEY_LENGTH;
 }
 
 #[cfg(test)]

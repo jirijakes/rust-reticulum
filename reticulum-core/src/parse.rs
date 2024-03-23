@@ -17,7 +17,7 @@ use crate::announce::Announce;
 use crate::context::Context;
 use crate::identity::Identity;
 use crate::interface::Interface;
-use crate::link_request::LinkRequest;
+use crate::link::LinkRequest;
 use crate::packet::{
     DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
 };

@@ -13,7 +13,7 @@ mod fernet;
 pub mod hdlc;
 pub mod identity;
 pub mod interface;
-pub mod link_request;
+pub mod link;
 pub mod packet;
 pub mod parse;
 pub mod path_request;
@@ -24,7 +24,7 @@ use context::{Context, RnsContext};
 use encode::Encode;
 use hdlc::Hdlc;
 use interface::Interface;
-use link_request::Link;
+use link::Link;
 use packet::Packet;
 use path_request::PathRequest;
 

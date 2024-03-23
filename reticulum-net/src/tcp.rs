@@ -7,7 +7,7 @@ use reticulum_core::context::{Context, RnsContext};
 use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
-use reticulum_core::link_request::Link;
+use reticulum_core::link::Link;
 use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
@@ -66,16 +66,7 @@ where
                                 let link = established_link.insert(link);
                                 receive.on_link_established(link);
 
-                                let message = [
-                                    link_request.id.as_slice(),
-                                    identity.public_key().as_bytes(),
-                                    identity.verifying_key().as_bytes(),
-                                ]
-                                .concat();
-
-                                let mut proof = secrets.sign(&message).to_vec();
-                                proof.append(&mut identity.public_key().to_bytes().to_vec());
-
+                                let proof = link_request.prove(&identity, &secrets);
                                 out.send(&Packet::link_proof(link_request.id, &proof));
                             }
                             Payload::LinkData(context, link_data) => {
