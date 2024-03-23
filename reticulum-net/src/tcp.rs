@@ -67,7 +67,7 @@ where
                                 receive.on_link_established(link);
 
                                 let proof = link_request.prove(&identity, &secrets);
-                                out.send(&Packet::link_proof(link_request.id, &proof));
+                                out.send(&Packet::link_proof(&link_request.link_id(), &proof));
                             }
                             Payload::LinkData(context, link_data) => {
                                 if let Some(link) = established_link.as_ref() {

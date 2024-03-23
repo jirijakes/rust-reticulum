@@ -5,7 +5,7 @@ use crate::context::{Context, RnsContext};
 use crate::destination::RNS_PATH_REQUEST_DESTINATION;
 use crate::encode::{Encode, Write};
 use crate::interface::Interface;
-use crate::link::{LinkProof, LinkRequest};
+use crate::link::{LinkId, LinkProof, LinkRequest};
 use crate::path_request::PathRequest;
 
 #[derive(Debug)]
@@ -67,7 +67,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
     }
 
     // TODO: Pass signature + pub key?
-    pub const fn link_proof(link_id: [u8; 16], s: &'a LinkProof) -> Packet<'a, I, C> {
+    pub const fn link_proof(link_id: &LinkId, s: &'a LinkProof) -> Packet<'a, I, C> {
         Packet {
             header: Header {
                 ifac_flag: IfacFlag::Open,
@@ -78,7 +78,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
                 hops: 0,
             },
             ifac: None,
-            destination: link_id,
+            destination: link_id.to_bytes(),
             transport_id: None,
             context: 0xFF,
             data: Payload::Data(s.as_bytes()),

@@ -17,7 +17,7 @@ use crate::announce::Announce;
 use crate::context::Context;
 use crate::identity::Identity;
 use crate::interface::Interface;
-use crate::link::LinkRequest;
+use crate::link::{LinkId, LinkRequest};
 use crate::packet::{
     DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
 };
@@ -157,18 +157,14 @@ fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u
 }
 
 /// Parser for Link Request for a link with `id` (derived from packet).
-fn link_request<'a>(id: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+fn link_request<'a>(id: LinkId) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
         let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
 
         Ok((
             input,
-            Payload::LinkRequest(LinkRequest {
-                id,
-                public_key,
-                verifying_key,
-            }),
+            Payload::LinkRequest(LinkRequest::new(id, public_key, verifying_key)),
         ))
     }
 }
@@ -230,10 +226,9 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
         ))(input)?,
         PacketType::Announce => announce(destination)(input)?,
         PacketType::LinkRequest => {
-            let link_id = packet_hash.finalize().as_slice()[..16]
-                .try_into()
-                .expect("16 bytes");
-            link_request(link_id)(input)?
+            let full_hash: [u8; 32] = packet_hash.finalize().into();
+            let truncated: [u8; 16] = full_hash[..16].try_into().expect("16 bytes");
+            link_request(truncated.into())(input)?
         }
         PacketType::Proof => todo!(),
     };

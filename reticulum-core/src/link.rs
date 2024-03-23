@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub struct Link {
-    id: [u8; 16],
+    id: LinkId,
     public_key: PublicKey,
     verifying_key: VerifyingKey,
     fernet: Fernet<OsRng>,
@@ -22,22 +22,33 @@ impl Link {
         self.fernet.decrypt(ciphertext, buf)
     }
 
-    pub fn id(&self) -> [u8; 16] {
-        self.id
+    pub fn id(&self) -> &LinkId {
+        &self.id
     }
 }
 
 #[derive(Debug)]
 pub struct LinkRequest {
-    pub id: [u8; 16],
-    pub public_key: PublicKey,
-    pub verifying_key: VerifyingKey,
+    id: LinkId,
+    public_key: PublicKey,
+    verifying_key: VerifyingKey,
 }
 
 impl LinkRequest {
+    pub const fn new(id: LinkId, public_key: PublicKey, verifying_key: VerifyingKey) -> Self {
+        Self {
+            id,
+            public_key,
+            verifying_key,
+        }
+    }
+
     pub fn establish_link<S: Dh>(&self, secrets: &S) -> Link {
         let mut derived_key = [0u8; 32];
-        let hkdf = Hkdf::<Sha256>::new(Some(&self.id), secrets.dh(&self.public_key).as_bytes());
+        let hkdf = Hkdf::<Sha256>::new(
+            Some(self.id.as_bytes()),
+            secrets.dh(&self.public_key).as_bytes(),
+        );
         hkdf.expand(&[], &mut derived_key)
             .expect("32 bytes is fine for Sha256");
 
@@ -66,7 +77,7 @@ impl LinkRequest {
 
         let mut message = [0u8; M3];
 
-        message[0..M1].copy_from_slice(&self.id);
+        message[0..M1].copy_from_slice(self.id.as_bytes());
         message[M1..M2].copy_from_slice(identity.public_key().as_bytes());
         message[M2..M3].copy_from_slice(identity.verifying_key().as_bytes());
 
@@ -79,6 +90,38 @@ impl LinkRequest {
         proof[P1..P2].copy_from_slice(identity.public_key().as_bytes());
 
         LinkProof(proof)
+    }
+
+    /// Returns ID of the link that is subject to this request.
+    pub fn link_id(&self) -> LinkId {
+        self.id
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct LinkId([u8; 16]);
+
+impl LinkId {
+    pub const fn as_bytes(&self) -> &[u8; Self::BYTE_SIZE] {
+        &self.0
+    }
+
+    pub const fn to_bytes(&self) -> [u8; Self::BYTE_SIZE] {
+        self.0
+    }
+
+    pub const BYTE_SIZE: usize = 16;
+}
+
+impl From<[u8; 16]> for LinkId {
+    fn from(value: [u8; 16]) -> Self {
+        LinkId(value)
+    }
+}
+
+impl std::fmt::Debug for LinkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.0))
     }
 }
 
