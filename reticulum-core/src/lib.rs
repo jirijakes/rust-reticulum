@@ -16,6 +16,7 @@ pub mod packet;
 pub mod parse;
 pub mod path_request;
 pub mod sign;
+mod fernet;
 
 use announce::Announce;
 use context::{Context, RnsContext};
