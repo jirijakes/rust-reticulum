@@ -1,6 +1,7 @@
 use core::fmt::Debug;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
+use hex::DisplayHex;
 use rand_core::CryptoRngCore;
 use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -36,7 +37,7 @@ impl Identity {
     }
 
     pub fn hash_str(&self) -> String {
-        hex::encode(self.hash())
+        self.hash().as_hex().to_string()
     }
 
     pub fn generate<T: CryptoRngCore>(mut csprng: T) -> (Identity, StaticSecret, SigningKey) {
@@ -78,7 +79,7 @@ impl Encode for Identity {
 
 impl Debug for Identity {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("Identity({})", &hex::encode(self.hash)))
+        f.write_fmt(format_args!("Identity({})", self.hash_str()))
     }
 }
 

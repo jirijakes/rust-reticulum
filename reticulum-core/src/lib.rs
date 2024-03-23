@@ -1,3 +1,4 @@
+use hex::DisplayHex;
 use std::io::Write;
 use std::net::TcpStream;
 
@@ -68,7 +69,7 @@ impl OnSend<TestInf, RnsContext> for TcpSend {
         let mut out = Vec::new();
         let _ = &packet.encode(&mut out);
 
-        log::trace!("OUT: {}", hex::encode(&out));
+        log::trace!("OUT: {}", out.as_hex());
 
         let _ = self.0.write(&out).expect("successfully written bytes");
         self.0.flush().expect("successfully flushed");
@@ -87,16 +88,16 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
             packet.header().destination_type,
             packet.header().packet_type,
             packet.header().hops,
-            hex::encode(packet.destination),
-            packet.transport_id.map(hex::encode)
+            packet.destination.as_hex(),
+            packet.transport_id.map(|x| x.as_hex().to_string())
         );
     }
 
     fn on_announce(&self, ann: &Announce) {
         log::info!(
             "Announce: name:{} rnd:{} data:[{}]",
-            hex::encode(ann.name_hash),
-            hex::encode(ann.random_hash),
+            ann.name_hash.as_hex(),
+            ann.random_hash.as_hex(),
             ann.app_data
                 .map(|b| String::from_utf8_lossy(b).to_string())
                 .unwrap_or("N/A".to_string())
@@ -106,20 +107,24 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
     fn on_path_request(&self, req: &PathRequest) {
         log::info!(
             "Path request: dest:{} trans:{} tag:{}",
-            hex::encode(req.query),
-            req.transport.map(hex::encode).unwrap_or("N/A".to_string()),
-            req.tag.map(hex::encode).unwrap_or("N/A".to_string())
+            req.query.as_hex(),
+            req.transport
+                .map(|x| x.as_hex().to_string())
+                .unwrap_or("N/A".to_string()),
+            req.tag
+                .map(|x| x.as_hex().to_string())
+                .unwrap_or("N/A".to_string())
         );
     }
 
     fn on_link_established(&self, link: &Link) {
-        log::info!("Link established: id={}", hex::encode(link.link_id().as_bytes()));
+        log::info!("Link established: id={}", link.link_id());
     }
 
     fn on_link_message(&self, link: &Link, message: &[u8]) {
         log::info!(
             "Message from link id={}: {:?}",
-            hex::encode(link.link_id().as_bytes()),
+            link.link_id(),
             core::str::from_utf8(message)
         );
     }

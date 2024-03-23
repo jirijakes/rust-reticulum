@@ -1,4 +1,5 @@
 use ed25519_dalek::Signature;
+use hex::DisplayHex;
 use sha2::{Digest, Sha256};
 
 use crate::encode::{Encode, Write};
@@ -42,7 +43,7 @@ impl<'a> Announce<'a> {
         engine.update(self.identity.hash());
         let x: [u8; 32] = engine.finalize().into();
 
-        println!("Validation: {valid:?} {}", hex::encode(&x[..16]));
+        println!("Validation: {valid:?} {}", x[..16].as_hex());
     }
 }
 

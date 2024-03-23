@@ -1,4 +1,5 @@
 use ed25519_dalek::{Signature, VerifyingKey, PUBLIC_KEY_LENGTH};
+use hex::DisplayHex;
 use hkdf::Hkdf;
 use rand_core::OsRng;
 use sha2::Sha256;
@@ -117,9 +118,15 @@ impl From<[u8; 16]> for LinkId {
     }
 }
 
-impl std::fmt::Debug for LinkId {
+impl core::fmt::Debug for LinkId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "LinkId({})", self.0.as_hex())
+    }
+}
+
+impl core::fmt::Display for LinkId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&hex::encode(self.0))
+        write!(f, "{}", self.0.as_hex())
     }
 }
 
@@ -140,6 +147,8 @@ impl LinkProof {
 
 #[cfg(test)]
 mod tests {
+    use hex_literal::hex;
+
     use crate::context::RnsContext;
     use crate::interface::Interface;
     use crate::packet::Payload;
@@ -154,7 +163,7 @@ mod tests {
     #[test]
     fn parse() {
         // cross-verified with reference implementation
-        let raw = hex::decode("020077b65c2bc324a2fe1d6d7520ae53f17300eeb5be3cbdee6c56d23ca05cfce5342feaeb4bf2b3e54ab5defcf0c2706dc027a8410f9a44306cba01f58937610c31d4844cb84e86505c3ed3fb477d036965c8").unwrap();
+        let raw = hex!("020077b65c2bc324a2fe1d6d7520ae53f17300eeb5be3cbdee6c56d23ca05cfce5342feaeb4bf2b3e54ab5defcf0c2706dc027a8410f9a44306cba01f58937610c31d4844cb84e86505c3ed3fb477d036965c8");
         let packet = parse::packet::<TestInf, RnsContext>(&raw);
         assert!(packet.is_ok());
         let (_, link_request) = packet.unwrap();
