@@ -57,7 +57,11 @@ fn main() {
     let announce = destination.announce_rnd(&mut OsRng, Some(b"rust-reticulum"), &secrets);
     let announce = Packet::<TestInf, RnsContext>::from_announce(announce);
 
-    let mut reticulum = Reticulum::tcp_std(PrintPackets(identity, secrets));
+    let mut reticulum = Reticulum::tcp_std(PrintPackets {
+        identity,
+        secrets,
+        established_link: None,
+    });
 
     thread::sleep(time::Duration::from_secs(2));
     reticulum.broadcast(&announce);

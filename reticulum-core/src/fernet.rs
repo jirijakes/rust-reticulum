@@ -17,6 +17,14 @@ const IV_LENGTH: usize = 16;
 const HMAC_LENGTH: usize = 32;
 
 impl<Rng: CryptoRngCore> Fernet<Rng> {
+    pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
+        Self {
+            signing_key,
+            encryption_key,
+            rng,
+        }
+    }
+
     pub fn encrypt<'a>(&mut self, message: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
         type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 

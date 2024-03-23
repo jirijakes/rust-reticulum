@@ -1,17 +1,22 @@
 use ed25519_dalek::VerifyingKey;
 use hkdf::Hkdf;
+use rand_core::OsRng;
 use sha2::Sha256;
 use x25519_dalek::PublicKey;
 
-use crate::sign::Dh;
+use crate::{fernet::Fernet, sign::Dh};
 
-#[derive(Debug)]
 pub struct Link {
     id: [u8; 16],
     public_key: PublicKey,
     verifying_key: VerifyingKey,
-    signing_key: [u8; 16],
-    encryption_key: [u8; 16],
+    fernet: Fernet<OsRng>,
+}
+
+impl Link {
+    pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
+        self.fernet.decrypt(ciphertext, buf)
+    }
 }
 
 #[derive(Debug)]
@@ -22,7 +27,7 @@ pub struct LinkRequest {
 }
 
 impl LinkRequest {
-    pub fn derive_keys<S: Dh>(&self, secrets: &S) {
+    pub fn establish_link<S: Dh>(&self, secrets: &S) -> Link {
         let mut derived_key = [0u8; 32];
         let hkdf = Hkdf::<Sha256>::new(Some(&self.id), secrets.dh(&self.public_key).as_bytes());
         hkdf.expand(&[], &mut derived_key)
@@ -30,17 +35,19 @@ impl LinkRequest {
 
         let (signing_key, encryption_key) = derived_key.split_at(16);
 
-        let link = Link {
+        let signing_key = signing_key.try_into().expect("There should be 16 bytes.");
+        let encryption_key = encryption_key
+            .try_into()
+            .expect("There should be another 16 bytes.");
+
+        let fernet = Fernet::new(signing_key, encryption_key, OsRng);
+
+        Link {
             id: self.id,
             public_key: self.public_key,
             verifying_key: self.verifying_key,
-            signing_key: signing_key.try_into().expect("There should be 16 bytes."),
-            encryption_key: encryption_key
-                .try_into()
-                .expect("There should be another 16 bytes."),
-        };
-
-        println!("{:02x?}", link);
+            fernet,
+        }
     }
 }
 

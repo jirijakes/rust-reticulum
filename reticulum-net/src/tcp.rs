@@ -28,6 +28,7 @@ where
     R: OnPacket<TestInf, RnsContext> + Send + 'static,
 {
     pub fn tcp_std(receive: R) -> Self {
+        let mut receive = receive;
         let stream = TcpStream::connect("localhost:4242").unwrap();
         let mut stream = Hdlc::new(stream);
 
