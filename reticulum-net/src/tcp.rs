@@ -63,8 +63,8 @@ where
                             }
                             Payload::LinkRequest(link_request) => {
                                 let link = link_request.establish_link(&secrets);
-                                receive.on_link_establihsed(&link);
-                                let _ = established_link.insert(link);
+                                let link = established_link.insert(link);
+                                receive.on_link_established(link);
 
                                 let message = [
                                     link_request.id.as_slice(),

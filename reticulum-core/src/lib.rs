@@ -41,7 +41,7 @@ pub trait OnPacket<I: Interface, C: Context> {
         let _ = path_request;
     }
 
-    fn on_link_establihsed(&self, link: &Link) {
+    fn on_link_established(&self, link: &Link) {
         let _ = link;
     }
 
@@ -112,7 +112,7 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
         );
     }
 
-    fn on_link_establihsed(&self, link: &Link) {
+    fn on_link_established(&self, link: &Link) {
         log::info!("Link established: id={}", hex::encode(link.id()));
     }
 
