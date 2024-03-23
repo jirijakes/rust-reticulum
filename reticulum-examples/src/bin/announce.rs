@@ -11,9 +11,9 @@ use reticulum_core::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 pub fn main() {
-    let (identity, _, sign_key) = Identity::generate(OsRng);
+    let (identity, static_key, sign_key) = Identity::generate(OsRng);
 
-    let sign = FixedKeys::new(sign_key);
+    let secrets = FixedKeys::new(static_key, sign_key);
 
     let destination1 =
         Destination::single_in(&identity, "example_utilities", "announcesample.fruits");
@@ -62,23 +62,27 @@ pub fn main() {
         }
     }
 
-    let mut reticulum = Reticulum::tcp_std(ShowAnnouncement {
-        destination: destination1.hash(),
-    });
+    let mut reticulum = Reticulum::tcp_std(
+        identity,
+        ShowAnnouncement {
+            destination: destination1.hash(),
+        },
+        secrets.clone(),
+    );
 
     loop {
         let mut buf = String::new();
         std::io::stdin().read_line(&mut buf).expect("read line");
 
         let noble_gas = noble_gases.choose(&mut rng).expect("non empty");
-        let announce2 = destination2.announce_rnd(&mut rng, Some(noble_gas.as_bytes()), &sign);
+        let announce2 = destination2.announce_rnd(&mut rng, Some(noble_gas.as_bytes()), &secrets);
         reticulum.broadcast(&Packet::from_announce(announce2));
         println!("Sent gassy announce.");
 
         std::thread::sleep(std::time::Duration::from_secs(2));
 
         let fruit = fruits.choose(&mut rng).expect("non empty");
-        let announce1 = destination1.announce_rnd(&mut rng, Some(fruit.as_bytes()), &sign);
+        let announce1 = destination1.announce_rnd(&mut rng, Some(fruit.as_bytes()), &secrets);
         reticulum.broadcast(&Packet::from_announce(announce1));
         println!("Sent fruity announce.");
     }

@@ -13,7 +13,7 @@ pub trait Dh {
 pub struct FixedKeys(StaticSecret, SigningKey);
 
 impl FixedKeys {
-    pub fn new(static_secret: StaticSecret, signing_key: SigningKey) -> Self {
+    pub const fn new(static_secret: StaticSecret, signing_key: SigningKey) -> Self {
         Self(static_secret, signing_key)
     }
 }
