@@ -173,6 +173,13 @@ fn link_request<'a>(id: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payl
     }
 }
 
+fn link_data<'a>(context: u8) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+    move |input| {
+        let (input, data) = rest(input)?;
+        Ok((input, Payload::LinkData(context, data)))
+    }
+}
+
 pub fn when<I, O, E: ParseError<I>, F>(b: bool, mut f: F) -> impl FnMut(I) -> IResult<I, O, E>
 where
     F: Parser<I, O, E>,
@@ -212,6 +219,12 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
                         .iter()
                         .any(|d| destination == d.hash()),
                 path_request,
+            ),
+            when(
+                header.header_type == HeaderType::Type1
+                    && header.propagation_type == PropagationType::Broadcast
+                    && header.destination_type == DestinationType::Link,
+                link_data(context),
             ),
             map(rest, Payload::Data),
         ))(input)?,

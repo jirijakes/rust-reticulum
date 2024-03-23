@@ -146,6 +146,7 @@ pub enum Payload<'a> {
     Announce(Announce<'a>),
     PathRequest(PathRequest<'a>),
     LinkRequest(LinkRequest),
+    LinkData(u8, &'a [u8]),
     Data(&'a [u8]),
 }
 
@@ -154,7 +155,8 @@ impl<'a> Encode for Payload<'a> {
         match self {
             Payload::Announce(a) => a.encode(writer),
             Payload::PathRequest(r) => r.encode(writer),
-            Payload::LinkRequest(r) => todo!(),
+            Payload::LinkData(_, _) => todo!(),
+            Payload::LinkRequest(_) => todo!(),
             Payload::Data(d) => d.encode(writer),
         }
     }

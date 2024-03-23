@@ -57,6 +57,9 @@ where
                                     out.send(&Packet::link_proof(req.id, &r));
                                 }
                             }
+                            Payload::LinkData(context, data) => {
+                                receive.on_link_data(context, data);
+                            }
                             _ => {
                                 println!("Other: {packet:?}");
                             }

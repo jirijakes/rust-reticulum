@@ -48,6 +48,11 @@ pub trait OnPacket<I: Interface, C: Context> {
         let _ = link_request;
         None
     }
+
+    fn on_link_data(&self, context: u8, link_data: &[u8]) {
+        let _ = context;
+        let _ = link_data;
+    }
 }
 
 pub trait OnSend<I: Interface, C: Context> {
@@ -127,6 +132,10 @@ impl<S: Sign + Dh> OnPacket<TestInf, RnsContext> for PrintPackets<S> {
         proof.append(&mut self.identity().public_key().to_bytes().to_vec());
 
         Some(proof)
+    }
+
+    fn on_link_data(&self, context: u8, link_data: &[u8]) {
+        log::info!("Link data: context: {}", context);
     }
 
     fn identity(&self) -> &Identity {
