@@ -160,14 +160,14 @@ fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u
 fn link_request<'a>(id: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
-        let (input, sig_public_key) = map(array, |a| PublicKey::from(*a))(input)?;
+        let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
 
         Ok((
             input,
             Payload::LinkRequest(LinkRequest {
                 id,
                 public_key,
-                sig_public_key,
+                verifying_key,
             }),
         ))
     }

@@ -15,7 +15,7 @@ use reticulum_core::destination::Destination;
 use reticulum_core::ed25519_dalek::SigningKey;
 use reticulum_core::identity::Identity;
 use reticulum_core::packet::Packet;
-use reticulum_core::sign::FixedKey;
+use reticulum_core::sign::FixedKeys;
 use reticulum_core::x25519_dalek::StaticSecret;
 use reticulum_core::{PrintPackets, TestInf};
 
@@ -48,31 +48,19 @@ fn load_identity() -> (Identity, StaticSecret, SigningKey) {
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
 
-    let (identity, _static_key, sign_key) = load_identity();
-    let sign = FixedKey::new(sign_key.clone());
+    let (identity, static_key, sign_key) = load_identity();
+    let secrets = FixedKeys::new(static_key, sign_key);
 
     info!("Starting rusty Reticulum with {identity:?}.");
 
-    let mut reticulum = Reticulum::tcp_std(PrintPackets(identity, sign_key));
+    let destination = Destination::single_in(&identity, "hello", "hello");
+    let announce = destination.announce_rnd(&mut OsRng, Some(b"rust-reticulum"), &secrets);
+    let announce = Packet::<TestInf, RnsContext>::from_announce(announce);
+
+    let mut reticulum = Reticulum::tcp_std(PrintPackets(identity, secrets));
 
     thread::sleep(time::Duration::from_secs(2));
-
-    let destination = Destination::single_in(&identity, "hello", "hello");
-    let announce = destination.announce_rnd(&mut OsRng, Some(b"rust-reticulum"), &sign);
-    let packet = Packet::<TestInf, RnsContext>::from_announce(announce);
-    reticulum.broadcast(&packet);
-
-    // let path_request = PathRequest::new_rns(
-    //     &[
-    //         0x02, 0x9f, 0x61, 0x43, 0xa3, 0x4b, 0xd3, 0x44, 0x93, 0x95, 0x86, 0xa4, 0x79, 0x17,
-    //         0x5c, 0x58,
-    //     ],
-    //     None,
-    //     Some(&[1, 2, 3]),
-    // );
-    // let packet = Packet::<TestInf, RnsContext>::from_path_request(path_request);
-    // sendem.send(&packet);
-    // });
+    reticulum.broadcast(&announce);
 
     let _ = reticulum.handle.join();
 

@@ -8,6 +8,7 @@ pub mod announce;
 pub mod context;
 pub mod destination;
 pub mod encode;
+mod fernet;
 pub mod hdlc;
 pub mod identity;
 pub mod interface;
@@ -16,12 +17,9 @@ pub mod packet;
 pub mod parse;
 pub mod path_request;
 pub mod sign;
-mod fernet;
 
 use announce::Announce;
 use context::{Context, RnsContext};
-use ed25519_dalek::ed25519::signature::Signer;
-use ed25519_dalek::SigningKey;
 use encode::Encode;
 use hdlc::Hdlc;
 use identity::Identity;
@@ -29,9 +27,9 @@ use interface::Interface;
 use link_request::LinkRequest;
 use packet::Packet;
 use path_request::PathRequest;
-use sign::Sign;
+use sign::{Dh, Sign};
 
-pub trait OnPacket<I: Interface, C: Context>: Sign {
+pub trait OnPacket<I: Interface, C: Context> {
     fn identity(&self) -> &Identity;
 
     fn on_packet(&self, packet: &Packet<I, C>) {
@@ -76,15 +74,9 @@ impl OnSend<TestInf, RnsContext> for TcpSend {
     }
 }
 
-pub struct PrintPackets(pub Identity, pub SigningKey);
+pub struct PrintPackets<S>(pub Identity, pub S);
 
-impl Sign for PrintPackets {
-    fn sign(&self, message: &[u8]) -> ed25519_dalek::Signature {
-        self.1.sign(message)
-    }
-}
-
-impl OnPacket<TestInf, RnsContext> for PrintPackets {
+impl<S: Sign + Dh> OnPacket<TestInf, RnsContext> for PrintPackets<S> {
     fn on_packet(&self, packet: &Packet<TestInf, RnsContext>) {
         log::debug!(
             "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {} {:?}",
@@ -122,6 +114,8 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
     fn on_link_request(&self, link_request: &LinkRequest) -> Option<Vec<u8>> {
         log::info!("Link request: id:{}", hex::encode(link_request.id));
 
+        link_request.derive_keys(&self.1);
+
         let message = [
             link_request.id.as_slice(),
             self.identity().public_key().as_bytes(),
@@ -129,7 +123,7 @@ impl OnPacket<TestInf, RnsContext> for PrintPackets {
         ]
         .concat();
 
-        let mut proof = self.sign(&message).to_vec();
+        let mut proof = self.1.sign(&message).to_vec();
         proof.append(&mut self.identity().public_key().to_bytes().to_vec());
 
         Some(proof)

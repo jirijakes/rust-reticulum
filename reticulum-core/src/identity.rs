@@ -15,11 +15,11 @@ pub struct Identity {
 }
 
 impl Identity {
-    pub fn new(pubkey: PublicKey, verifying_key: VerifyingKey) -> Identity {
+    pub fn new(public_key: PublicKey, verifying_key: VerifyingKey) -> Identity {
         Identity {
-            public_key: pubkey,
+            public_key,
             verifying_key,
-            hash: Self::calculate_hash(&pubkey, &verifying_key),
+            hash: Self::calculate_hash(&public_key, &verifying_key),
         }
     }
 

@@ -56,7 +56,7 @@ mod tests {
     use crate::interface::Interface;
     use crate::packet::{Packet, Payload};
     use crate::parse;
-    use crate::sign::FixedKey;
+    use crate::sign::FixedKeys;
 
     #[derive(Debug)]
     struct TestInf;
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn there_and_back() {
         let (identity, _, sign_key) = Identity::generate(OsRng);
-        let sign = FixedKey::new(sign_key);
+        let sign = FixedKeys::new(sign_key);
         let destination = Destination::single_in(&identity, "testing_app", "fruits");
         let announce = destination.announce([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], None, &sign);
         announce.validate();

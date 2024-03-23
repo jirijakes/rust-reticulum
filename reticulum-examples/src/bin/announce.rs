@@ -6,14 +6,14 @@ use reticulum_core::context::RnsContext;
 use reticulum_core::destination::Destination;
 use reticulum_core::identity::Identity;
 use reticulum_core::packet::Packet;
-use reticulum_core::sign::FixedKey;
+use reticulum_core::sign::FixedKeys;
 use reticulum_core::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 pub fn main() {
     let (identity, _, sign_key) = Identity::generate(OsRng);
 
-    let sign = FixedKey::new(sign_key);
+    let sign = FixedKeys::new(sign_key);
 
     let destination1 =
         Destination::single_in(&identity, "example_utilities", "announcesample.fruits");

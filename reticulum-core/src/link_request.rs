@@ -1,10 +1,47 @@
+use ed25519_dalek::VerifyingKey;
+use hkdf::Hkdf;
+use sha2::Sha256;
 use x25519_dalek::PublicKey;
+
+use crate::sign::Dh;
+
+#[derive(Debug)]
+pub struct Link {
+    id: [u8; 16],
+    public_key: PublicKey,
+    verifying_key: VerifyingKey,
+    signing_key: [u8; 16],
+    encryption_key: [u8; 16],
+}
 
 #[derive(Debug)]
 pub struct LinkRequest {
     pub id: [u8; 16],
     pub public_key: PublicKey,
-    pub sig_public_key: PublicKey,
+    pub verifying_key: VerifyingKey,
+}
+
+impl LinkRequest {
+    pub fn derive_keys<S: Dh>(&self, secrets: &S) {
+        let mut derived_key = [0u8; 32];
+        let hkdf = Hkdf::<Sha256>::new(Some(&self.id), secrets.dh(&self.public_key).as_bytes());
+        hkdf.expand(&[], &mut derived_key)
+            .expect("32 bytes is fine for Sha256");
+
+        let (signing_key, encryption_key) = derived_key.split_at(16);
+
+        let link = Link {
+            id: self.id,
+            public_key: self.public_key,
+            verifying_key: self.verifying_key,
+            signing_key: signing_key.try_into().expect("There should be 16 bytes."),
+            encryption_key: encryption_key
+                .try_into()
+                .expect("There should be another 16 bytes."),
+        };
+
+        println!("{:02x?}", link);
+    }
 }
 
 #[cfg(test)]
