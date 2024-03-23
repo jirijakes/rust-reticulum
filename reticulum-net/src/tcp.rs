@@ -5,30 +5,37 @@ use std::thread::{self, JoinHandle};
 
 use reticulum_core::context::{Context, RnsContext};
 use reticulum_core::hdlc::Hdlc;
+use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
+use reticulum_core::link_request::Link;
 use reticulum_core::packet::{Packet, Payload};
+use reticulum_core::rmp;
+use reticulum_core::sign::{Dh, Sign};
 use reticulum_core::{OnPacket, OnSend, TcpSend, TestInf};
 
-pub struct Reticulum<R, S, I, C>
+pub struct Reticulum<R, S, I, C, X>
 where
     I: Interface,
     C: Context,
     R: OnPacket<I, C>,
     S: OnSend<I, C>,
+    X: Sign + Dh,
 {
     send: S,
     pub handle: JoinHandle<()>,
     _r: PhantomData<R>,
     _i: PhantomData<I>,
     _c: PhantomData<C>,
+    _x: PhantomData<X>,
 }
 
-impl<R> Reticulum<R, TcpSend, TestInf, RnsContext>
+impl<R, X> Reticulum<R, TcpSend, TestInf, RnsContext, X>
 where
     R: OnPacket<TestInf, RnsContext> + Send + 'static,
+    X: Sign + Dh + Send + 'static,
 {
-    pub fn tcp_std(receive: R) -> Self {
-        let mut receive = receive;
+    pub fn tcp_std(identity: Identity, receive: R, secrets: X) -> Self {
+        let receive = receive;
         let stream = TcpStream::connect("localhost:4242").unwrap();
         let mut stream = Hdlc::new(stream);
 
@@ -38,6 +45,7 @@ where
 
         let handle = thread::spawn(move || {
             let mut buf = [0u8; 512];
+            let mut established_link: Option<Link> = None;
 
             while let Ok(x) = stream.read(&mut buf) {
                 log::trace!("IN: {}", hex::encode(buf.get(0..x).unwrap()));
@@ -53,13 +61,38 @@ where
                             Payload::PathRequest(req) => {
                                 receive.on_path_request(&req);
                             }
-                            Payload::LinkRequest(req) => {
-                                if let Some(r) = receive.on_link_request(&req) {
-                                    out.send(&Packet::link_proof(req.id, &r));
-                                }
+                            Payload::LinkRequest(link_request) => {
+                                let link = link_request.establish_link(&secrets);
+                                receive.on_link_establihsed(&link);
+                                let _ = established_link.insert(link);
+
+                                let message = [
+                                    link_request.id.as_slice(),
+                                    identity.public_key().as_bytes(),
+                                    identity.verifying_key().as_bytes(),
+                                ]
+                                .concat();
+
+                                let mut proof = secrets.sign(&message).to_vec();
+                                proof.append(&mut identity.public_key().to_bytes().to_vec());
+
+                                out.send(&Packet::link_proof(link_request.id, &proof));
                             }
-                            Payload::LinkData(context, data) => {
-                                receive.on_link_data(context, data);
+                            Payload::LinkData(context, link_data) => {
+                                if let Some(link) = established_link.as_ref() {
+                                    let mut buf = [0u8; 500];
+                                    let message = link.decrypt(link_data, &mut buf);
+                                    if context == 0 {
+                                        receive.on_link_message(link, message);
+                                    } else if context == 254 {
+                                        log::debug!(
+                                            "RTT: {:?}",
+                                            rmp::decode::read_f64(&mut &message[..])
+                                        );
+                                    } else if context == 252 {
+                                        log::debug!("Link closed: id={}", hex::encode(message));
+                                    }
+                                }
                             }
                             _ => {
                                 println!("Other: {packet:?}");
@@ -79,6 +112,7 @@ where
             _r: PhantomData,
             _i: PhantomData,
             _c: PhantomData,
+            _x: PhantomData,
         }
     }
 

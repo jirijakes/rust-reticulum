@@ -17,6 +17,10 @@ impl Link {
     pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
         self.fernet.decrypt(ciphertext, buf)
     }
+
+    pub fn id(&self) -> [u8; 16] {
+        self.id
+    }
 }
 
 #[derive(Debug)]

@@ -2,6 +2,7 @@ use std::io::Write;
 use std::net::TcpStream;
 
 pub use ed25519_dalek;
+pub use rmp;
 pub use x25519_dalek;
 
 pub mod announce;
@@ -22,16 +23,12 @@ use announce::Announce;
 use context::{Context, RnsContext};
 use encode::Encode;
 use hdlc::Hdlc;
-use identity::Identity;
 use interface::Interface;
-use link_request::{Link, LinkRequest};
+use link_request::Link;
 use packet::Packet;
 use path_request::PathRequest;
-use sign::{Dh, Sign};
 
 pub trait OnPacket<I: Interface, C: Context> {
-    fn identity(&self) -> &Identity;
-
     fn on_packet(&self, packet: &Packet<I, C>) {
         let _ = packet;
     }
@@ -44,14 +41,13 @@ pub trait OnPacket<I: Interface, C: Context> {
         let _ = path_request;
     }
 
-    fn on_link_request(&mut self, link_request: &LinkRequest) -> Option<Vec<u8>> {
-        let _ = link_request;
-        None
+    fn on_link_establihsed(&self, link: &Link) {
+        let _ = link;
     }
 
-    fn on_link_data(&self, context: u8, link_data: &[u8]) {
-        let _ = context;
-        let _ = link_data;
+    fn on_link_message(&self, link: &Link, message: &[u8]) {
+        let _ = message;
+        let _ = link;
     }
 }
 
@@ -79,13 +75,9 @@ impl OnSend<TestInf, RnsContext> for TcpSend {
     }
 }
 
-pub struct PrintPackets<S> {
-    pub identity: Identity,
-    pub secrets: S,
-    pub established_link: Option<Link>,
-}
+pub struct PrintPackets;
 
-impl<S: Sign + Dh> OnPacket<TestInf, RnsContext> for PrintPackets<S> {
+impl OnPacket<TestInf, RnsContext> for PrintPackets {
     fn on_packet(&self, packet: &Packet<TestInf, RnsContext>) {
         log::debug!(
             "Packet: {:?}/{:?}/{:?}/{:?}/{:?}/{} {} {:?}",
@@ -120,41 +112,15 @@ impl<S: Sign + Dh> OnPacket<TestInf, RnsContext> for PrintPackets<S> {
         );
     }
 
-    fn on_link_request(&mut self, link_request: &LinkRequest) -> Option<Vec<u8>> {
-        log::info!("Link request: id:{}", hex::encode(link_request.id));
-
-        let link = link_request.establish_link(&self.secrets);
-        let _ = self.established_link.insert(link);
-
-        let message = [
-            link_request.id.as_slice(),
-            self.identity().public_key().as_bytes(),
-            self.identity().verifying_key().as_bytes(),
-        ]
-        .concat();
-
-        let mut proof = self.secrets.sign(&message).to_vec();
-        proof.append(&mut self.identity().public_key().to_bytes().to_vec());
-
-        Some(proof)
+    fn on_link_establihsed(&self, link: &Link) {
+        log::info!("Link established: id={}", hex::encode(link.id()));
     }
 
-    fn on_link_data(&self, context: u8, link_data: &[u8]) {
-        log::info!("Link data: context={}, len={}", context, link_data.len());
-        if let Some(link) = self.established_link.as_ref() {
-            let mut buf = [0u8; 500];
-            let message = link.decrypt(link_data, &mut buf);
-            if context == 0 {
-                log::info!("Message: {:?}", core::str::from_utf8(message));
-            } else if context == 254 {
-                log::info!("RTT: {:?}", rmp::decode::read_f64(&mut &message[..]));
-            } else if context == 252 {
-                log::info!("Link closed: id={}", hex::encode(message));
-            }
-        }
-    }
-
-    fn identity(&self) -> &Identity {
-        &self.identity
+    fn on_link_message(&self, link: &Link, message: &[u8]) {
+        log::info!(
+            "Message from link id={}: {:?}",
+            hex::encode(link.id()),
+            core::str::from_utf8(message)
+        );
     }
 }
