@@ -4,10 +4,11 @@ use std::net::TcpStream;
 use std::thread::{self, JoinHandle};
 
 use reticulum_core::context::{Context, RnsContext};
+use reticulum_core::destination::{Destination, In, Out, Single};
 use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
-use reticulum_core::link::Link;
+use reticulum_core::link::{Link, LinkRequest};
 use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
@@ -110,5 +111,10 @@ where
 
     pub fn broadcast(&mut self, packet: &Packet<TestInf, RnsContext>) {
         self.send.send(packet);
+    }
+
+    pub fn establish_link(&mut self, destination: Destination<Single, Out, Identity>) {
+        // id: LinkId, public_key: PublicKey, verifying_key: VerifyingKey
+        let request = LinkRequest::new();
     }
 }
