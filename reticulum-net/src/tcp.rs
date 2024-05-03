@@ -81,6 +81,7 @@ where
                                             rmp::decode::read_f64(&mut &message[..])
                                         );
                                     } else if context == 252 {
+                                        receive.on_link_closed(link);
                                         log::debug!("Link closed: id={}", hex::encode(message));
                                     }
                                 }

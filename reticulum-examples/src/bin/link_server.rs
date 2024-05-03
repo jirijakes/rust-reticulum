@@ -24,6 +24,10 @@ pub fn main() {
         fn on_link_message(&self, link: &Link, message: &[u8]) {
             println!("{}: {}", link.link_id(), String::from_utf8_lossy(message));
         }
+
+        fn on_link_closed(&self, link: &Link) {
+            println!(".. {}: closed", link.link_id());
+        }
     }
 
     let myself = Destination::single_in(&identity, "example_utilities", "linkexample");

@@ -46,6 +46,10 @@ pub trait OnPacket<I: Interface, C: Context> {
         let _ = link;
     }
 
+    fn on_link_closed(&self, link: &Link) {
+        let _ = link;
+    }
+
     fn on_link_message(&self, link: &Link, message: &[u8]) {
         let _ = message;
         let _ = link;
