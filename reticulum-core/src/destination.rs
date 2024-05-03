@@ -19,8 +19,10 @@
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
 
+use core::fmt::Display;
 use core::marker::PhantomData;
 
+use hex::DisplayHex;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
@@ -128,6 +130,12 @@ pub struct Destination<'a, T, D, I> {
     hash: [u8; 16],
     destination_type: PhantomData<T>,
     direction: PhantomData<D>,
+}
+
+impl<'a, T, D, I> Display for Destination<'a, T, D, I> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("<{}>", self.hash.as_hex()))
+    }
 }
 
 impl<'a> Destination<'a, Single, In, Identity> {

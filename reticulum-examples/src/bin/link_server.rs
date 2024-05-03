@@ -31,6 +31,9 @@ pub fn main() {
     }
 
     let myself = Destination::single_in(&identity, "example_utilities", "linkexample");
+
+    println!("Hello, this is {myself}, waiting for a link request.");
+
     let announce = myself.announce_rnd(&mut OsRng, None, &secrets);
     let announce = Packet::from_announce(announce);
 
