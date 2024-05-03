@@ -14,13 +14,15 @@ impl Interface for TestInf {
 
 #[test]
 fn path_requests() {
+    use hex::prelude::*;
+    
     let path = Path::new("tests/data/path_requests.txt");
     let f = File::open(path).expect("load file with path requests");
     let f = BufReader::new(f);
 
     f.lines().for_each(|line| {
         if let Ok(hex) = line {
-            let msg = hex::decode(&hex).expect("decode hex string");
+            let msg = Vec::from_hex(&hex).expect("decode hex string");
             let packet: Result<(&[u8], Packet<TestInf>), _> = parse::packet(&msg);
             assert!(packet.is_ok());
             if let Ok((rest, packet)) = packet {

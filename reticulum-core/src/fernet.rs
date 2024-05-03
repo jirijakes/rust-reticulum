@@ -74,6 +74,7 @@ impl<Rng> Fernet<Rng> {
 
 #[cfg(test)]
 mod tests {
+    use hex::prelude::*;
     use rand_core::OsRng;
 
     use crate::fernet::Fernet;
@@ -92,7 +93,7 @@ mod tests {
 
         let x = f.encrypt(m.as_slice(), &mut buf);
 
-        println!(">> {} {}", x.len(), hex::encode(x));
+        println!(">> {} {}", x.len(), x.as_hex());
 
         let mut buf = [0; 500];
 

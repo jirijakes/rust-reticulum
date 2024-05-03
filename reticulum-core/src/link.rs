@@ -97,7 +97,7 @@ impl LinkRequest {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub struct LinkId([u8; 16]);
 
 impl LinkId {
@@ -170,8 +170,8 @@ mod tests {
         assert!(matches!(link_request.data, Payload::LinkRequest(_)));
         if let Payload::LinkRequest(request) = link_request.data {
             assert_eq!(
-                request.id,
-                [
+                request.id.as_bytes(),
+                &[
                     0x60, 0xc1, 0xb9, 0xa3, 0x5a, 0xc4, 0xbd, 0xc2, 0x3c, 0x09, 0x77, 0xb3, 0x8d,
                     0x5c, 0x72, 0xce,
                 ]
