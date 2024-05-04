@@ -1,11 +1,15 @@
 use core::marker::PhantomData;
 
+use ed25519_dalek::{VerifyingKey, PUBLIC_KEY_LENGTH};
+use x25519_dalek::PublicKey;
+
 use crate::announce::Announce;
 use crate::context::{Context, RnsContext};
-use crate::destination::RNS_PATH_REQUEST_DESTINATION;
+use crate::destination::{Destination, Out, Single, RNS_PATH_REQUEST_DESTINATION};
 use crate::encode::{Encode, Write};
+use crate::identity::Identity;
 use crate::interface::Interface;
-use crate::link::{LinkId, LinkProof, LinkRequest};
+use crate::link::{LinkId, LinkProof, LinkRequest, Lynx};
 use crate::path_request::PathRequest;
 
 #[derive(Debug)]
@@ -61,6 +65,29 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             transport_id: None, // TODO: For rebroadcasting, this will be filled in.
             context: 0,
             data: Payload::Announce(announce),
+            interface: PhantomData,
+            xcontext: PhantomData,
+        }
+    }
+
+    pub fn link_request(
+        destination: Destination<Single, Out, Identity>,
+        lynx: &'a Lynx,
+    ) -> Packet<'a, I, C> {
+        Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: DestinationType::Single,
+                packet_type: PacketType::LinkRequest,
+                hops: 0,
+            },
+            ifac: None,
+            destination: destination.hash(),
+            transport_id: None,
+            context: 0x00,
+            data: Payload::Data(lynx.as_bytes()),
             interface: PhantomData,
             xcontext: PhantomData,
         }

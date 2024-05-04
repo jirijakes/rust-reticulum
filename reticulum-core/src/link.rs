@@ -9,6 +9,23 @@ use crate::fernet::Fernet;
 use crate::identity::Identity;
 use crate::sign::{Dh, Sign};
 
+pub struct Lynx([u8; Self::LENGTH]);
+
+impl Lynx {
+    const LENGTH: usize = 32 /* x25519 public key length */  + ed25519_dalek::PUBLIC_KEY_LENGTH;
+
+    pub fn new(public_key: PublicKey, verifying_key: VerifyingKey) -> Self {
+        let mut bytes: [u8; Self::LENGTH] = [0; Self::LENGTH];
+        bytes[0..32].copy_from_slice(public_key.as_bytes());
+        bytes[32..64].copy_from_slice(verifying_key.as_bytes());
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
+        &self.0
+    }
+}
+
 pub struct Link {
     id: LinkId,
     public_key: PublicKey,

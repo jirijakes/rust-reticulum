@@ -1,3 +1,4 @@
+use env_logger::Env;
 use rand_core::OsRng;
 
 use reticulum_core::context::RnsContext;
@@ -10,6 +11,8 @@ use reticulum_core::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 pub fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
+
     let (identity, static_key, sign_key) = Identity::generate(OsRng);
 
     let secrets = FixedKeys::new(static_key, sign_key);
