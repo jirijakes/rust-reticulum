@@ -167,7 +167,7 @@ impl core::fmt::Debug for LinkId {
 }
 
 impl core::fmt::Display for LinkId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0.as_hex())
     }
 }
