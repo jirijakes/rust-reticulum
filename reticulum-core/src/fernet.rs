@@ -58,13 +58,11 @@ impl<Rng> Fernet<Rng> {
         let message = &ciphertext[IV_LENGTH..hmac_index];
         let tag: [u8; HMAC_LENGTH] = ciphertext[hmac_index..].try_into().unwrap();
 
-        let x = hmac::Hmac::<Sha256>::new_from_slice(&self.signing_key)
-            .unwrap()
-            .chain_update(iv)
-            .chain_update(message)
-            .verify_slice(&tag);
-
-        println!("{:?}", x);
+        // let x = hmac::Hmac::<Sha256>::new_from_slice(&self.signing_key)
+        //     .unwrap()
+        //     .chain_update(iv)
+        //     .chain_update(message)
+        //     .verify_slice(&tag);
 
         Aes128CbcDec::new(&self.encryption_key.into(), &iv.into())
             .decrypt_padded_b2b_mut::<Pkcs7>(message, &mut buf[..])
@@ -93,12 +91,8 @@ mod tests {
 
         let x = f.encrypt(m.as_slice(), &mut buf);
 
-        println!(">> {} {}", x.len(), x.as_hex());
-
         let mut buf = [0; 500];
 
         let y = f.decrypt(x, &mut buf);
-
-        println!("{:?}", String::from_utf8_lossy(y));
     }
 }

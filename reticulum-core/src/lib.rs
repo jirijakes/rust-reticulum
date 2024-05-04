@@ -1,3 +1,8 @@
+#![no_std]
+
+extern crate alloc;
+
+use alloc::string::{String, ToString};
 use hex::DisplayHex;
 
 pub use ed25519_dalek;

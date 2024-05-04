@@ -18,7 +18,8 @@
 //!
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
-
+use alloc::vec;
+use alloc::string::String;
 use core::fmt::Display;
 use core::marker::PhantomData;
 

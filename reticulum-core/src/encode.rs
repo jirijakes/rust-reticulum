@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 pub trait Write {
     fn write(&mut self, buf: &[u8]) -> usize;
 }

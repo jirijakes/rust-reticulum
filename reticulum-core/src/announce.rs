@@ -1,5 +1,6 @@
+use alloc::vec;
+
 use ed25519_dalek::Signature;
-use hex::DisplayHex;
 use sha2::{Digest, Sha256};
 
 use crate::encode::{Encode, Write};
@@ -41,14 +42,14 @@ impl<'a> Announce<'a> {
         let mut engine = Sha256::new();
         engine.update(self.name_hash);
         engine.update(self.identity.hash());
-        let x: [u8; 32] = engine.finalize().into();
-
-        println!("Validation: {valid:?} {}", x[..16].as_hex());
+        // let x: [u8; 32] = engine.finalize().into();
+        // println!("Validation: {valid:?} {}", x[..16].as_hex());
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
     use rand_core::*;
 
     use crate::destination::Destination;

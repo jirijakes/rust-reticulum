@@ -1,3 +1,4 @@
+use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
@@ -92,6 +93,6 @@ mod tests {
     #[test]
     fn generates() {
         let (id, _sec, _sig) = Identity::generate(OsRng);
-        println!("{:?}", id);
+        // println!("{:?}", id);
     }
 }
