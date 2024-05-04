@@ -5,16 +5,13 @@ use std::thread::{self, JoinHandle};
 
 use rand_core::OsRng;
 use reticulum_core::context::{Context, RnsContext};
-use reticulum_core::destination::{Destination, In, Out, Single};
-use reticulum_core::ed25519_dalek::{SigningKey, VerifyingKey};
 use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
-use reticulum_core::link::{Link, LinkRequest, Lynx};
+use reticulum_core::link::{Link, LinkKeys};
 use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
-use reticulum_core::x25519_dalek::{EphemeralSecret, PublicKey};
 use reticulum_core::{OnPacket, OnSend, TcpSend, TestInf};
 
 pub struct Reticulum<R, S, I, C, X>
@@ -38,7 +35,7 @@ where
     R: OnPacket<TestInf, RnsContext> + Send + 'static,
     X: Sign + Dh + Send + 'static,
 {
-    pub fn tcp_std(identity: Identity, receive: R, secrets: X) -> Self {
+    pub fn tcp_std(_identity: Identity, receive: R, secrets: X) -> Self {
         let receive = receive;
         let stream = TcpStream::connect("localhost:4242").unwrap();
         let mut stream = Hdlc::new(stream);
@@ -66,11 +63,14 @@ where
                                 receive.on_path_request(&req);
                             }
                             Payload::LinkRequest(link_request) => {
-                                let link = link_request.establish_link(&secrets);
+                                let (keys, ephemeral) = LinkKeys::generate(&mut OsRng);
+
+                                let link = link_request.establish_link(ephemeral);
                                 let link = established_link.insert(link);
                                 receive.on_link_established(link);
 
-                                let proof = link_request.prove(&identity, &secrets);
+                                let proof = link_request.prove(&keys, &secrets);
+
                                 out.send(&Packet::link_proof(&link_request.link_id(), &proof));
                             }
                             Payload::LinkData(context, link_data) => {
@@ -90,6 +90,7 @@ where
                                     }
                                 }
                             }
+                            Payload::LinkProof(proof) => {}
                             _ => {
                                 println!("Other: {packet:?}");
                             }
@@ -114,18 +115,5 @@ where
 
     pub fn broadcast(&mut self, packet: &Packet<TestInf, RnsContext>) {
         self.send.send(packet);
-    }
-
-    pub fn establish_link(&mut self, destination: Destination<Single, Out, Identity>) {
-        let signing_key = SigningKey::generate(&mut OsRng);
-        let ephemeral_key = EphemeralSecret::random_from_rng(OsRng);
-        let verifying_key = VerifyingKey::from(&signing_key);
-        let public_key = PublicKey::from(&ephemeral_key);
-
-        let lynx = Lynx::new(public_key, verifying_key);
-
-        let packet = Packet::link_request(destination, &lynx);
-
-        self.broadcast(&packet);
     }
 }

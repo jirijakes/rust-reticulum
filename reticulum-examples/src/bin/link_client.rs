@@ -9,6 +9,8 @@ use reticulum_core::announce::Announce;
 use reticulum_core::context::RnsContext;
 use reticulum_core::destination::Destination;
 use reticulum_core::identity::Identity;
+use reticulum_core::link::{LinkKeys, Lynx};
+use reticulum_core::packet::Packet;
 use reticulum_core::sign::FixedKeys;
 use reticulum_core::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
@@ -47,7 +49,13 @@ pub fn main() {
         let announces = announces.read().expect("read announces");
         let linkee_id = announces.get(&destination).expect("announced destination");
         let linkee_dest = Destination::new(linkee_id, "example_utilities", "linkexample");
-        reticulum.establish_link(linkee_dest);
+
+        let (link_keys, _ephemeral) = LinkKeys::generate(&mut OsRng);
+
+        let lynx = Lynx::new(*link_keys.public_key(), link_keys.verifying_key());
+        let packet = Packet::link_request(linkee_dest, &lynx);
+
+        reticulum.broadcast(&packet);
     }
 
     let _ = reticulum.handle.join();
