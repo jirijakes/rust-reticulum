@@ -94,7 +94,7 @@ where
                                 }
                             }
                             Payload::LinkProof(proof) => {
-                                println!("{:02x?}", proof);
+                                println!("Proof: {}", hex::encode(proof.as_bytes()));
                             }
                             _ => {
                                 println!("Other: {packet:?}");

@@ -47,7 +47,7 @@ impl LinkKeys {
     }
 
     pub fn verifying_key(&self) -> VerifyingKey {
-        (&self.signing_key).into()
+        self.signing_key.verifying_key()
     }
 }
 

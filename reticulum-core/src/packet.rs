@@ -1,6 +1,5 @@
 use core::marker::PhantomData;
 
-use rand::thread_rng;
 use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;

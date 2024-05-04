@@ -53,9 +53,12 @@ pub fn main() {
         let (link_keys, _ephemeral) = LinkKeys::generate(&mut OsRng);
 
         let lynx = Lynx::new(*link_keys.public_key(), link_keys.verifying_key());
-        let packet = Packet::link_request(linkee_dest, &lynx);
+        let packet = Packet::<TestInf, RnsContext>::link_request(linkee_dest, &lynx);
 
-        reticulum.broadcast(&packet);
+        let mut buf = [0; 512];
+        let (data, _hash) = packet.encode_get_hash(&mut buf);
+
+        reticulum.broadcast_raw(data);
     }
 
     let _ = reticulum.handle.join();
