@@ -147,10 +147,15 @@ impl core::fmt::Display for LinkId {
     }
 }
 
+#[derive(Debug)]
 /// Signed proof that link request was received.
 pub struct LinkProof([u8; LinkProof::BYTE_SIZE]);
 
 impl LinkProof {
+    pub const fn from_bytes(bytes: [u8; LinkProof::BYTE_SIZE]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn as_bytes(&self) -> &[u8; Self::BYTE_SIZE] {
         &self.0
     }

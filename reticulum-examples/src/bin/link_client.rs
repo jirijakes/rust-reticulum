@@ -1,17 +1,16 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    env::args,
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::collections::HashMap;
+use std::env::args;
+use std::sync::{Arc, RwLock};
 
 use env_logger::Env;
 use rand_core::OsRng;
-use reticulum_core::{
-    announce::Announce, context::RnsContext, destination::Destination, identity::Identity,
-    link::Link, sign::FixedKeys, OnPacket, TestInf,
-};
+
+use reticulum_core::announce::Announce;
+use reticulum_core::context::RnsContext;
+use reticulum_core::destination::Destination;
+use reticulum_core::identity::Identity;
+use reticulum_core::sign::FixedKeys;
+use reticulum_core::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 struct LinkClient(Arc<RwLock<HashMap<[u8; 16], Identity>>>);

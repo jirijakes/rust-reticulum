@@ -174,6 +174,7 @@ pub enum Payload<'a> {
     PathRequest(PathRequest<'a>),
     LinkRequest(LinkRequest),
     LinkData(u8, &'a [u8]),
+    LinkProof(LinkProof),
     Data(&'a [u8]),
 }
 
@@ -184,6 +185,7 @@ impl<'a> Encode for Payload<'a> {
             Payload::PathRequest(r) => r.encode(writer),
             Payload::LinkData(_, _) => todo!(),
             Payload::LinkRequest(_) => todo!(),
+            Payload::LinkProof(_) => todo!(),
             Payload::Data(d) => d.encode(writer),
         }
     }
@@ -217,7 +219,7 @@ pub enum DestinationType {
     Link,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PacketType {
     Data,
     Announce,
