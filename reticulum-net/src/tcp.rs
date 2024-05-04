@@ -1,9 +1,11 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::net::TcpStream;
 use std::thread::{self, JoinHandle};
 
+use hex::DisplayHex;
 use rand_core::OsRng;
+
 use reticulum_core::context::{Context, RnsContext};
 use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
@@ -12,7 +14,18 @@ use reticulum_core::link::{Link, LinkKeys};
 use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
-use reticulum_core::{OnPacket, OnSend, TcpSend, TestInf};
+use reticulum_core::{OnPacket, OnSend, TestInf};
+
+pub struct TcpSend(pub Hdlc<TcpStream>);
+
+impl OnSend<TestInf, RnsContext> for TcpSend {
+    fn send(&mut self, bytes: &[u8]) {
+        log::trace!("OUT: {}", bytes.as_hex());
+
+        let _ = self.0.write(bytes).expect("successfully written bytes");
+        self.0.flush().expect("successfully flushed");
+    }
+}
 
 pub struct Reticulum<R, S, I, C, X>
 where
@@ -49,7 +62,7 @@ where
             let mut established_link: Option<Link> = None;
 
             while let Ok(x) = stream.read(&mut buf) {
-                log::trace!("IN: {}", hex::encode(buf.get(0..x).unwrap()));
+                log::trace!("IN: {}", buf.get(0..x).unwrap().as_hex());
                 match reticulum_core::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
                     Ok((_, packet)) => {
                         receive.on_packet(&packet);
@@ -89,12 +102,12 @@ where
                                         );
                                     } else if context == 252 {
                                         receive.on_link_closed(link);
-                                        log::debug!("Link closed: id={}", hex::encode(message));
+                                        log::debug!("Link closed: id={}", message.as_hex());
                                     }
                                 }
                             }
                             Payload::LinkProof(proof) => {
-                                println!("Proof: {}", hex::encode(proof.as_bytes()));
+                                println!("Proof: {}", proof.as_bytes().as_hex());
                             }
                             _ => {
                                 println!("Other: {packet:?}");

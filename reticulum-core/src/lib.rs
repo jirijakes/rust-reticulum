@@ -1,6 +1,4 @@
 use hex::DisplayHex;
-use std::io::Write;
-use std::net::TcpStream;
 
 pub use ed25519_dalek;
 pub use rmp;
@@ -23,7 +21,6 @@ pub mod sign;
 use announce::Announce;
 use context::{Context, RnsContext};
 use encode::Encode;
-use hdlc::Hdlc;
 use interface::Interface;
 use link::Link;
 use packet::Packet;
@@ -73,17 +70,6 @@ pub trait OnSend<I: Interface, C: Context> {
 pub struct TestInf;
 impl Interface for TestInf {
     const LENGTH: usize = 2;
-}
-
-pub struct TcpSend(pub Hdlc<TcpStream>);
-
-impl OnSend<TestInf, RnsContext> for TcpSend {
-    fn send(&mut self, bytes: &[u8]) {
-        log::trace!("OUT: {}", bytes.as_hex());
-
-        let _ = self.0.write(bytes).expect("successfully written bytes");
-        self.0.flush().expect("successfully flushed");
-    }
 }
 
 pub struct PrintPackets;

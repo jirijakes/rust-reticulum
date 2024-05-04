@@ -533,7 +533,7 @@ name = "reticulum-net"
 version = "0.1.0"
 dependencies = [
  "env_logger",
- "hex",
+ "hex-conservative",
  "log",
  "rand_core",
  "reticulum-core",
