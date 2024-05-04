@@ -1,5 +1,5 @@
 [package]
-name = "reticulum-examples"
+name = "reticulum_examples"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 env_logger = "0.11"
-reticulum-core = { path = "../reticulum-core" }
-reticulum-net = { path = "../reticulum-net" }
+reticulum_core = { path = "../reticulum-core" }
+reticulum_net = { path = "../reticulum-net" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 rand = "0.8"
 hex = "0.4"

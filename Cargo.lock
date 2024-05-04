@@ -496,7 +496,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
-name = "reticulum-core"
+name = "reticulum_core"
 version = "0.1.0"
 dependencies = [
  "aes",
@@ -517,26 +517,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "reticulum-examples"
+name = "reticulum_examples"
 version = "0.1.0"
 dependencies = [
  "env_logger",
  "hex",
  "rand",
  "rand_core",
- "reticulum-core",
- "reticulum-net",
+ "reticulum_core",
+ "reticulum_net",
 ]
 
 [[package]]
-name = "reticulum-net"
+name = "reticulum_net"
 version = "0.1.0"
 dependencies = [
  "env_logger",
  "hex-conservative",
  "log",
  "rand_core",
- "reticulum-core",
+ "reticulum_core",
 ]
 
 [[package]]

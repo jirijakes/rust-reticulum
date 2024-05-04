@@ -7,7 +7,6 @@ use hex::DisplayHex;
 use rand_core::OsRng;
 
 use reticulum_core::context::{Context, RnsContext};
-use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
 use reticulum_core::link::{Link, LinkKeys};
@@ -15,6 +14,8 @@ use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
 use reticulum_core::{OnPacket, OnSend, TestInf};
+
+use crate::hdlc::Hdlc;
 
 pub struct TcpSend(pub Hdlc<TcpStream>);
 

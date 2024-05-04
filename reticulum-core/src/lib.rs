@@ -9,7 +9,6 @@ pub mod context;
 pub mod destination;
 pub mod encode;
 mod fernet;
-pub mod hdlc;
 pub mod identity;
 pub mod interface;
 pub mod link;
