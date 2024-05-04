@@ -1,11 +1,14 @@
 use core::marker::PhantomData;
 
+use sha2::{Digest, Sha256};
+
 use crate::announce::Announce;
 use crate::context::{Context, RnsContext};
-use crate::destination::RNS_PATH_REQUEST_DESTINATION;
+use crate::destination::{Destination, Out, Single, RNS_PATH_REQUEST_DESTINATION};
 use crate::encode::{Encode, Write};
+use crate::identity::Identity;
 use crate::interface::Interface;
-use crate::link::{LinkId, LinkProof, LinkRequest};
+use crate::link::{LinkId, LinkProof, LinkRequest, Lynx};
 use crate::path_request::PathRequest;
 
 #[derive(Debug)]
@@ -66,6 +69,29 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
         }
     }
 
+    pub fn link_request(
+        destination: Destination<Single, Out, Identity>,
+        lynx: &'a Lynx,
+    ) -> Packet<'a, I, C> {
+        Packet {
+            header: Header {
+                ifac_flag: IfacFlag::Open,
+                header_type: HeaderType::Type1,
+                propagation_type: PropagationType::Broadcast,
+                destination_type: DestinationType::Single,
+                packet_type: PacketType::LinkRequest,
+                hops: 0,
+            },
+            ifac: None,
+            destination: destination.hash(),
+            transport_id: None,
+            context: 0x00,
+            data: Payload::Data(lynx.as_bytes()),
+            interface: PhantomData,
+            xcontext: PhantomData,
+        }
+    }
+
     // TODO: Pass signature + pub key?
     pub const fn link_proof(link_id: &LinkId, s: &'a LinkProof) -> Packet<'a, I, C> {
         Packet {
@@ -85,6 +111,36 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             interface: PhantomData,
             xcontext: PhantomData,
         }
+    }
+}
+
+impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
+    /// Special method to encode packet and at the same time calculate its hash.
+    /// Unless hash is needed, it is recommend to call `encode`.
+    ///
+    /// Note: `out` will be overwritten.
+    pub fn encode_get_hash<'b>(&self, out: &'b mut [u8; 512]) -> (&'b [u8], [u8; 16]) {
+        let mut buf = &mut out[..];
+        let mut packet_hash = Sha256::new();
+
+        let h_len = self.header.encode(&mut buf);
+        let t_len = self.transport_id.encode(&mut buf);
+        let d_len = self.destination.encode(&mut buf);
+        let c_len = self.context.encode(&mut buf);
+        let dt_len = self.data.encode(&mut buf);
+
+        let len = h_len + t_len + d_len + c_len + dt_len;
+
+        // first byte of header (masked)
+        packet_hash.update([out[0] & 0b00001111]);
+
+        // destination + context + data
+        packet_hash.update(&out[h_len + t_len..len]);
+
+        let full_hash: [u8; 32] = packet_hash.finalize().into();
+        let truncated: [u8; 16] = full_hash[..16].try_into().expect("16 bytes");
+
+        (&out[..len], truncated)
     }
 }
 
@@ -147,6 +203,7 @@ pub enum Payload<'a> {
     PathRequest(PathRequest<'a>),
     LinkRequest(LinkRequest),
     LinkData(u8, &'a [u8]),
+    LinkProof(LinkProof),
     Data(&'a [u8]),
 }
 
@@ -157,6 +214,7 @@ impl<'a> Encode for Payload<'a> {
             Payload::PathRequest(r) => r.encode(writer),
             Payload::LinkData(_, _) => todo!(),
             Payload::LinkRequest(_) => todo!(),
+            Payload::LinkProof(_) => todo!(),
             Payload::Data(d) => d.encode(writer),
         }
     }
@@ -190,7 +248,7 @@ pub enum DestinationType {
     Link,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PacketType {
     Data,
     Announce,

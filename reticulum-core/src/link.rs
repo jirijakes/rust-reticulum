@@ -1,13 +1,55 @@
-use ed25519_dalek::{Signature, VerifyingKey, PUBLIC_KEY_LENGTH};
+use ed25519_dalek::{Signature, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH};
 use hex::DisplayHex;
 use hkdf::Hkdf;
-use rand_core::OsRng;
+use rand_core::{CryptoRngCore, OsRng};
 use sha2::Sha256;
-use x25519_dalek::PublicKey;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 use crate::fernet::Fernet;
-use crate::identity::Identity;
-use crate::sign::{Dh, Sign};
+use crate::sign::Sign;
+
+pub struct Lynx([u8; Self::LENGTH]);
+
+impl Lynx {
+    const LENGTH: usize = 32 /* x25519 public key length */  + ed25519_dalek::PUBLIC_KEY_LENGTH;
+
+    pub fn new(public_key: PublicKey, verifying_key: VerifyingKey) -> Self {
+        let mut bytes: [u8; Self::LENGTH] = [0; Self::LENGTH];
+        bytes[0..32].copy_from_slice(public_key.as_bytes());
+        bytes[32..64].copy_from_slice(verifying_key.as_bytes());
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
+        &self.0
+    }
+}
+
+pub struct LinkKeys {
+    signing_key: SigningKey,
+    public_key: PublicKey,
+}
+
+impl LinkKeys {
+    pub fn generate<T: CryptoRngCore>(mut csprng: T) -> (LinkKeys, EphemeralSecret) {
+        let signing_key = SigningKey::generate(&mut csprng);
+        let ephemeral_secret = EphemeralSecret::random_from_rng(csprng);
+        let keys = LinkKeys {
+            signing_key,
+            public_key: (&ephemeral_secret).into(),
+        };
+
+        (keys, ephemeral_secret)
+    }
+
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+
+    pub fn verifying_key(&self) -> VerifyingKey {
+        self.signing_key.verifying_key()
+    }
+}
 
 pub struct Link {
     id: LinkId,
@@ -42,11 +84,11 @@ impl LinkRequest {
         }
     }
 
-    pub fn establish_link<S: Dh>(&self, secrets: &S) -> Link {
+    pub fn establish_link(&self, ephemeral_secret: EphemeralSecret) -> Link {
         let mut derived_key = [0u8; 32];
         let hkdf = Hkdf::<Sha256>::new(
             Some(self.id.as_bytes()),
-            secrets.dh(&self.public_key).as_bytes(),
+            ephemeral_secret.diffie_hellman(&self.public_key).as_bytes(),
         );
         hkdf.expand(&[], &mut derived_key)
             .expect("32 bytes is fine for Sha256");
@@ -69,7 +111,7 @@ impl LinkRequest {
     }
 
     /// Generates a signed proof that the link request was received by `identity`.
-    pub fn prove<S: Sign>(&self, identity: &Identity, secrets: &S) -> LinkProof {
+    pub fn prove<S: Sign>(&self, keys: &LinkKeys, secrets: &S) -> LinkProof {
         const M1: usize = 16;
         const M2: usize = M1 + PUBLIC_KEY_LENGTH;
         const M3: usize = M2 + PUBLIC_KEY_LENGTH;
@@ -77,8 +119,8 @@ impl LinkRequest {
         let mut message = [0u8; M3];
 
         message[0..M1].copy_from_slice(self.id.as_bytes());
-        message[M1..M2].copy_from_slice(identity.public_key().as_bytes());
-        message[M2..M3].copy_from_slice(identity.verifying_key().as_bytes());
+        message[M1..M2].copy_from_slice(keys.public_key().as_bytes());
+        message[M2..M3].copy_from_slice(keys.verifying_key().as_bytes());
 
         const P1: usize = Signature::BYTE_SIZE;
         const P2: usize = P1 + PUBLIC_KEY_LENGTH;
@@ -86,7 +128,7 @@ impl LinkRequest {
         let mut proof = [0u8; P2];
 
         proof[0..P1].copy_from_slice(&secrets.sign(&message).to_bytes());
-        proof[P1..P2].copy_from_slice(identity.public_key().as_bytes());
+        proof[P1..P2].copy_from_slice(keys.public_key().as_bytes());
 
         LinkProof(proof)
     }
@@ -130,10 +172,17 @@ impl core::fmt::Display for LinkId {
     }
 }
 
+#[derive(Debug)]
 /// Signed proof that link request was received.
 pub struct LinkProof([u8; LinkProof::BYTE_SIZE]);
 
 impl LinkProof {
+    pub const BYTE_SIZE: usize = Signature::BYTE_SIZE + PUBLIC_KEY_LENGTH;
+
+    pub const fn from_bytes(bytes: [u8; Self::BYTE_SIZE]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn as_bytes(&self) -> &[u8; Self::BYTE_SIZE] {
         &self.0
     }
@@ -142,7 +191,18 @@ impl LinkProof {
         self.0
     }
 
-    pub const BYTE_SIZE: usize = Signature::BYTE_SIZE + PUBLIC_KEY_LENGTH;
+    /// Extracts signature from the Link Proof.
+    pub fn signature(&self) -> Signature {
+        Signature::from_bytes(self.0[0..Signature::BYTE_SIZE].try_into().expect("64 < 96"))
+    }
+
+    /// Extracts public key from the Link Proof.
+    pub fn public_key(&self) -> PublicKey {
+        let data: [u8; PUBLIC_KEY_LENGTH] = self.0[Signature::BYTE_SIZE..]
+            .try_into()
+            .expect("64 + 32 = 96");
+        PublicKey::from(data)
+    }
 }
 
 #[cfg(test)]

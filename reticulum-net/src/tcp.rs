@@ -3,11 +3,12 @@ use std::marker::PhantomData;
 use std::net::TcpStream;
 use std::thread::{self, JoinHandle};
 
+use rand_core::OsRng;
 use reticulum_core::context::{Context, RnsContext};
 use reticulum_core::hdlc::Hdlc;
 use reticulum_core::identity::Identity;
 use reticulum_core::interface::Interface;
-use reticulum_core::link::Link;
+use reticulum_core::link::{Link, LinkKeys};
 use reticulum_core::packet::{Packet, Payload};
 use reticulum_core::rmp;
 use reticulum_core::sign::{Dh, Sign};
@@ -34,7 +35,7 @@ where
     R: OnPacket<TestInf, RnsContext> + Send + 'static,
     X: Sign + Dh + Send + 'static,
 {
-    pub fn tcp_std(identity: Identity, receive: R, secrets: X) -> Self {
+    pub fn tcp_std(_identity: Identity, receive: R, secrets: X) -> Self {
         let receive = receive;
         let stream = TcpStream::connect("localhost:4242").unwrap();
         let mut stream = Hdlc::new(stream);
@@ -62,12 +63,18 @@ where
                                 receive.on_path_request(&req);
                             }
                             Payload::LinkRequest(link_request) => {
-                                let link = link_request.establish_link(&secrets);
+                                let (keys, ephemeral) = LinkKeys::generate(&mut OsRng);
+
+                                let link = link_request.establish_link(ephemeral);
                                 let link = established_link.insert(link);
                                 receive.on_link_established(link);
 
-                                let proof = link_request.prove(&identity, &secrets);
-                                out.send(&Packet::link_proof(&link_request.link_id(), &proof));
+                                let proof = link_request.prove(&keys, &secrets);
+
+                                out.send_packet(&Packet::link_proof(
+                                    &link_request.link_id(),
+                                    &proof,
+                                ));
                             }
                             Payload::LinkData(context, link_data) => {
                                 if let Some(link) = established_link.as_ref() {
@@ -85,6 +92,9 @@ where
                                         log::debug!("Link closed: id={}", hex::encode(message));
                                     }
                                 }
+                            }
+                            Payload::LinkProof(proof) => {
+                                println!("Proof: {}", hex::encode(proof.as_bytes()));
                             }
                             _ => {
                                 println!("Other: {packet:?}");
@@ -109,6 +119,10 @@ where
     }
 
     pub fn broadcast(&mut self, packet: &Packet<TestInf, RnsContext>) {
-        self.send.send(packet);
+        self.send.send_packet(packet);
+    }
+
+    pub fn broadcast_raw(&mut self, data: &[u8]) {
+        self.send.send(data);
     }
 }
