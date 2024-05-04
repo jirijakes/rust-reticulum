@@ -121,4 +121,8 @@ where
     pub fn broadcast(&mut self, packet: &Packet<TestInf, RnsContext>) {
         self.send.send_packet(packet);
     }
+
+    pub fn broadcast_raw(&mut self, data: &[u8]) {
+        self.send.send(data);
+    }
 }

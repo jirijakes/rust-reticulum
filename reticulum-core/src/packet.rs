@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
-use ed25519_dalek::{VerifyingKey, PUBLIC_KEY_LENGTH};
-use x25519_dalek::PublicKey;
+use rand::thread_rng;
+use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;
 use crate::context::{Context, RnsContext};
@@ -112,6 +112,36 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             interface: PhantomData,
             xcontext: PhantomData,
         }
+    }
+}
+
+impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
+    /// Special method to encode packet and at the same time calculate its hash.
+    /// Unless hash is needed, it is recommend to call `encode`.
+    ///
+    /// Note: `out` will be overwritten.
+    pub fn encode_get_hash<'b>(&self, out: &'b mut [u8; 512]) -> (&'b [u8], [u8; 16]) {
+        let mut buf = &mut out[..];
+        let mut packet_hash = Sha256::new();
+
+        let h_len = self.header.encode(&mut buf);
+        let t_len = self.transport_id.encode(&mut buf);
+        let d_len = self.destination.encode(&mut buf);
+        let c_len = self.context.encode(&mut buf);
+        let dt_len = self.data.encode(&mut buf);
+
+        let len = h_len + t_len + d_len + c_len + dt_len;
+
+        // first byte of header (masked)
+        packet_hash.update([out[0] & 0b00001111]);
+
+        // destination + context + data
+        packet_hash.update(&out[h_len + t_len..len]);
+
+        let full_hash: [u8; 32] = packet_hash.finalize().into();
+        let truncated: [u8; 16] = full_hash[..16].try_into().expect("16 bytes");
+
+        (&out[..len], truncated)
     }
 }
 
