@@ -1,13 +1,13 @@
 use env_logger::Env;
 use rand_core::OsRng;
 
-use reticulum_core::context::RnsContext;
-use reticulum_core::destination::Destination;
-use reticulum_core::identity::Identity;
-use reticulum_core::link::Link;
-use reticulum_core::packet::Packet;
-use reticulum_core::sign::FixedKeys;
-use reticulum_core::{OnPacket, TestInf};
+use reticulum::context::RnsContext;
+use reticulum::destination::Destination;
+use reticulum::identity::Identity;
+use reticulum::link::Link;
+use reticulum::packet::Packet;
+use reticulum::sign::FixedKeys;
+use reticulum::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 pub fn main() {

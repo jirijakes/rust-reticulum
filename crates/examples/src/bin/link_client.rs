@@ -5,14 +5,14 @@ use std::sync::{Arc, RwLock};
 use env_logger::Env;
 use rand_core::OsRng;
 
-use reticulum_core::announce::Announce;
-use reticulum_core::context::RnsContext;
-use reticulum_core::destination::Destination;
-use reticulum_core::identity::Identity;
-use reticulum_core::link::{LinkKeys, Lynx};
-use reticulum_core::packet::Packet;
-use reticulum_core::sign::FixedKeys;
-use reticulum_core::{OnPacket, TestInf};
+use reticulum::announce::Announce;
+use reticulum::context::RnsContext;
+use reticulum::destination::Destination;
+use reticulum::identity::Identity;
+use reticulum::link::{LinkKeys, Lynx};
+use reticulum::packet::Packet;
+use reticulum::sign::FixedKeys;
+use reticulum::{OnPacket, TestInf};
 use reticulum_net::tcp::Reticulum;
 
 struct LinkClient(Arc<RwLock<HashMap<[u8; 16], Identity>>>);

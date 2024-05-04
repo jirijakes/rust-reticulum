@@ -107,11 +107,11 @@ mod tests {
     use std::io::{Read, Write};
     use std::marker::PhantomData;
 
-    use reticulum_core::encode::Encode;
-    use reticulum_core::interface::*;
-    use reticulum_core::packet::*;
-    use reticulum_core::parse::*;
-    use reticulum_core::path_request::PathRequest;
+    use reticulum::encode::Encode;
+    use reticulum::interface::*;
+    use reticulum::packet::*;
+    use reticulum::parse::*;
+    use reticulum::path_request::PathRequest;
 
     use crate::hdlc::Hdlc;
 

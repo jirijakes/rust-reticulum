@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use reticulum_core::interface::Interface;
-use reticulum_core::packet::{Packet, Payload};
-use reticulum_core::parse;
+use reticulum::interface::Interface;
+use reticulum::packet::{Packet, Payload};
+use reticulum::parse;
 
 #[derive(Debug)]
 struct TestInf;

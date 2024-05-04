@@ -6,14 +6,14 @@ use std::thread::{self, JoinHandle};
 use hex::DisplayHex;
 use rand_core::OsRng;
 
-use reticulum_core::context::{Context, RnsContext};
-use reticulum_core::identity::Identity;
-use reticulum_core::interface::Interface;
-use reticulum_core::link::{Link, LinkKeys};
-use reticulum_core::packet::{Packet, Payload};
-use reticulum_core::rmp;
-use reticulum_core::sign::{Dh, Sign};
-use reticulum_core::{OnPacket, OnSend, TestInf};
+use reticulum::context::{Context, RnsContext};
+use reticulum::identity::Identity;
+use reticulum::interface::Interface;
+use reticulum::link::{Link, LinkKeys};
+use reticulum::packet::{Packet, Payload};
+use reticulum::rmp;
+use reticulum::sign::{Dh, Sign};
+use reticulum::{OnPacket, OnSend, TestInf};
 
 use crate::hdlc::Hdlc;
 
@@ -64,7 +64,7 @@ where
 
             while let Ok(x) = stream.read(&mut buf) {
                 log::trace!("IN: {}", buf.get(0..x).unwrap().as_hex());
-                match reticulum_core::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
+                match reticulum::parse::packet::<TestInf, RnsContext>(buf.get(0..x).unwrap()) {
                     Ok((_, packet)) => {
                         receive.on_packet(&packet);
 
