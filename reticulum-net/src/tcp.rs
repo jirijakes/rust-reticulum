@@ -71,7 +71,10 @@ where
 
                                 let proof = link_request.prove(&keys, &secrets);
 
-                                out.send(&Packet::link_proof(&link_request.link_id(), &proof));
+                                out.send_packet(&Packet::link_proof(
+                                    &link_request.link_id(),
+                                    &proof,
+                                ));
                             }
                             Payload::LinkData(context, link_data) => {
                                 if let Some(link) = established_link.as_ref() {
@@ -90,7 +93,9 @@ where
                                     }
                                 }
                             }
-                            Payload::LinkProof(proof) => {}
+                            Payload::LinkProof(proof) => {
+                                println!("{:02x?}", proof);
+                            }
                             _ => {
                                 println!("Other: {packet:?}");
                             }
@@ -114,6 +119,6 @@ where
     }
 
     pub fn broadcast(&mut self, packet: &Packet<TestInf, RnsContext>) {
-        self.send.send(packet);
+        self.send.send_packet(packet);
     }
 }

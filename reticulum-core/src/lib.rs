@@ -57,7 +57,16 @@ pub trait OnPacket<I: Interface, C: Context> {
 }
 
 pub trait OnSend<I: Interface, C: Context> {
-    fn send(&mut self, packet: &Packet<I, C>);
+    /// Send raw bytes.
+    fn send(&mut self, bytes: &[u8]);
+
+    /// Send packet. Use this method whenever possible. If it's convenient (perhaps
+    /// for performance reason) to encode packet first, use [`send`].
+    fn send_packet(&mut self, packet: &Packet<TestInf, RnsContext>) {
+        let mut out = [0u8; 512];
+        let len = packet.encode(&mut out.as_mut_slice());
+        self.send(&out[..len]);
+    }
 }
 
 #[derive(Debug)]
@@ -69,13 +78,10 @@ impl Interface for TestInf {
 pub struct TcpSend(pub Hdlc<TcpStream>);
 
 impl OnSend<TestInf, RnsContext> for TcpSend {
-    fn send(&mut self, packet: &Packet<TestInf, RnsContext>) {
-        let mut out = Vec::new();
-        let _ = &packet.encode(&mut out);
+    fn send(&mut self, bytes: &[u8]) {
+        log::trace!("OUT: {}", bytes.as_hex());
 
-        log::trace!("OUT: {}", out.as_hex());
-
-        let _ = self.0.write(&out).expect("successfully written bytes");
+        let _ = self.0.write(bytes).expect("successfully written bytes");
         self.0.flush().expect("successfully flushed");
     }
 }
