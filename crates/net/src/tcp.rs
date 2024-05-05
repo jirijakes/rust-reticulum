@@ -10,7 +10,7 @@ use reticulum::context::{Context, RnsContext};
 use reticulum::identity::Identity;
 use reticulum::interface::Interface;
 use reticulum::link::{Link, LinkKeys};
-use reticulum::packet::{Packet, Payload};
+use reticulum::packet::{Packet, PacketContext, Payload};
 use reticulum::rmp;
 use reticulum::sign::{Dh, Sign};
 use reticulum::{OnPacket, OnSend, TestInf};
@@ -94,16 +94,21 @@ where
                                 if let Some(link) = established_link.as_ref() {
                                     let mut buf = [0u8; 500];
                                     let message = link.decrypt(link_data, &mut buf);
-                                    if context == 0 {
-                                        receive.on_link_message(link, message);
-                                    } else if context == 254 {
-                                        log::debug!(
-                                            "RTT: {:?}",
-                                            rmp::decode::read_f64(&mut &message[..])
-                                        );
-                                    } else if context == 252 {
-                                        receive.on_link_closed(link);
-                                        log::debug!("Link closed: id={}", message.as_hex());
+                                    match context {
+                                        PacketContext::None => {
+                                            receive.on_link_message(link, message);
+                                        }
+                                        PacketContext::LinkRequestRoundTripTime => {
+                                            log::debug!(
+                                                "RTT: {:?}",
+                                                rmp::decode::read_f64(&mut &message[..])
+                                            );
+                                        }
+                                        PacketContext::LinkClose => {
+                                            receive.on_link_closed(link);
+                                            log::debug!("Link closed: id={}", message.as_hex());
+                                        }
+                                        _ => {}
                                     }
                                 }
                             }

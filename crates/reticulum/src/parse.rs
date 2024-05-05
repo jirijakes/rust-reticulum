@@ -4,7 +4,7 @@ use ed25519_dalek::VerifyingKey;
 use nom::bits::bits;
 use nom::branch::alt;
 use nom::bytes::complete::take;
-use nom::combinator::{cond, map, map_opt, rest, success, verify};
+use nom::combinator::{cond, map, map_opt, map_res, rest, success, verify};
 use nom::complete::bool;
 use nom::error::{make_error, ErrorKind, ParseError};
 use nom::number::complete::u8;
@@ -19,7 +19,8 @@ use crate::identity::Identity;
 use crate::interface::Interface;
 use crate::link::{LinkId, LinkProof, LinkRequest};
 use crate::packet::{
-    DestinationType, Header, HeaderType, IfacFlag, Packet, PacketType, Payload, PropagationType,
+    DestinationType, Header, HeaderType, IfacFlag, Packet, PacketContext, PacketType, Payload,
+    PropagationType,
 };
 use crate::path_request::PathRequest;
 
@@ -169,7 +170,7 @@ fn link_request<'a>(id: LinkId) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payloa
     }
 }
 
-fn link_data<'a>(context: u8) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+fn link_data<'a>(context: PacketContext) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, data) = rest(input)?;
         Ok((input, Payload::LinkData(context, data)))
@@ -179,6 +180,11 @@ fn link_data<'a>(context: u8) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload>
 /// Parser for a Link Proof.
 fn link_proof(input: &[u8]) -> IResult<&[u8], Payload> {
     map(array, |&s| Payload::LinkProof(LinkProof::from_bytes(s)))(input)
+}
+
+/// Parser for Packet Context.
+fn packet_context(input: &[u8]) -> IResult<&[u8], PacketContext> {
+    map_res(u8, PacketContext::try_from)(input)
 }
 
 pub fn when<I, O, E: ParseError<I>, F>(b: bool, mut f: F) -> impl FnMut(I) -> IResult<I, O, E>
@@ -209,7 +215,7 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
     packet_hash.update(input);
 
     let (input, destination) = map(hash, |h| *h)(input)?;
-    let (input, context) = u8(input)?;
+    let (input, context) = packet_context(input)?;
     let (input, data) = match header.packet_type {
         PacketType::Data => alt((
             when(

@@ -1,3 +1,5 @@
+use alloc::format;
+use alloc::string::String;
 use core::marker::PhantomData;
 
 use sha2::{Digest, Sha256};
@@ -17,8 +19,7 @@ pub struct Packet<'a, I: Interface, C: Context = RnsContext> {
     pub ifac: Option<&'a [u8]>,
     pub destination: [u8; 16],
     pub transport_id: Option<[u8; 16]>,
-    // TODO: make enum
-    pub context: u8,
+    pub context: PacketContext,
     pub data: Payload<'a>,
     pub interface: PhantomData<I>,
     pub xcontext: PhantomData<C>,
@@ -42,7 +43,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             ifac: None,
             destination: RNS_PATH_REQUEST_DESTINATION.hash(),
             transport_id: None,
-            context: 0,
+            context: PacketContext::None,
             data: Payload::PathRequest(path_request),
             interface: PhantomData,
             xcontext: PhantomData,
@@ -62,7 +63,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             ifac: None,
             destination: announce.destination,
             transport_id: None, // TODO: For rebroadcasting, this will be filled in.
-            context: 0,
+            context: PacketContext::None,
             data: Payload::Announce(announce),
             interface: PhantomData,
             xcontext: PhantomData,
@@ -85,7 +86,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             ifac: None,
             destination: destination.hash(),
             transport_id: None,
-            context: 0x00,
+            context: PacketContext::None,
             data: Payload::Data(lynx.as_bytes()),
             interface: PhantomData,
             xcontext: PhantomData,
@@ -106,7 +107,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
             ifac: None,
             destination: link_id.to_bytes(),
             transport_id: None,
-            context: 0xFF,
+            context: PacketContext::LinkRequestProof,
             data: Payload::Data(s.as_bytes()),
             interface: PhantomData,
             xcontext: PhantomData,
@@ -202,7 +203,7 @@ pub enum Payload<'a> {
     Announce(Announce<'a>),
     PathRequest(PathRequest<'a>),
     LinkRequest(LinkRequest),
-    LinkData(u8, &'a [u8]),
+    LinkData(PacketContext, &'a [u8]),
     LinkProof(LinkProof),
     Data(&'a [u8]),
 }
@@ -216,6 +217,40 @@ impl<'a> Encode for Payload<'a> {
             Payload::LinkRequest(_) => todo!(),
             Payload::LinkProof(_) => todo!(),
             Payload::Data(d) => d.encode(writer),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PacketContext {
+    None,
+    LinkClose,
+    LinkRequestRoundTripTime,
+    LinkRequestProof,
+}
+
+impl Encode for PacketContext {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> usize {
+        let numeric: u8 = match self {
+            PacketContext::None => 0x00,
+            PacketContext::LinkClose => 0xfc,
+            PacketContext::LinkRequestRoundTripTime => 0xfe,
+            PacketContext::LinkRequestProof => 0xff,
+        };
+        numeric.encode(writer)
+    }
+}
+
+impl TryFrom<u8> for PacketContext {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0x00 => Ok(PacketContext::None),
+            0xfc => Ok(PacketContext::LinkClose),
+            0xfe => Ok(PacketContext::LinkRequestRoundTripTime),
+            0xff => Ok(PacketContext::LinkRequestProof),
+            n => Err(format!("Unknown packet context {n}")),
         }
     }
 }
