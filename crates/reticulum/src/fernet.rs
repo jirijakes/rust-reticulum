@@ -49,16 +49,34 @@ impl<Rng> Fernet<Rng> {
         }
     }
 
+    /// Decrypts `ciphertext` using this token. Writes decrypted message into `buf`
+    /// and returns the relevant slice backekd by `buf`.
+    ///
+    /// Returns error if ciphertext is not longer than 48 bytes, HMAC is invalid
+    /// or `buf` is not long enough for decrypted message.
     pub fn decrypt<'a>(
         &self,
         ciphertext: &[u8],
         buf: &'a mut [u8],
     ) -> Result<&'a [u8], DecryptError> {
-        let hmac_index = ciphertext.len() - HMAC_LENGTH;
+        let hmac_index = ciphertext
+            .len()
+            .checked_sub(HMAC_LENGTH)
+            .ok_or(DecryptError::TooShort)?;
 
-        let iv: [u8; IV_LENGTH] = ciphertext[0..IV_LENGTH].try_into().unwrap();
-        let message = &ciphertext[IV_LENGTH..hmac_index];
-        let tag: [u8; HMAC_LENGTH] = ciphertext[hmac_index..].try_into().unwrap();
+        let iv: [u8; IV_LENGTH] = ciphertext
+            .get(0..IV_LENGTH)
+            .ok_or(DecryptError::TooShort)?
+            .try_into()
+            .expect("enough bytes");
+        let message = &ciphertext
+            .get(IV_LENGTH..hmac_index)
+            .ok_or(DecryptError::TooShort)?;
+        let tag: [u8; HMAC_LENGTH] = ciphertext
+            .get(hmac_index..)
+            .ok_or(DecryptError::TooShort)?
+            .try_into()
+            .map_err(|_| DecryptError::TooShort)?;
 
         HmacSha256::new_from_slice(&self.signing_key)
             .expect("16 bytes is enough")
@@ -67,15 +85,22 @@ impl<Rng> Fernet<Rng> {
             .verify_slice(&tag)
             .map_err(|_| DecryptError::BadMac)?;
 
-        Ok(Aes128CbcDec::new(&self.encryption_key.into(), &iv.into())
+        Aes128CbcDec::new(&self.encryption_key.into(), &iv.into())
             .decrypt_padded_b2b_mut::<Pkcs7>(message, &mut buf[..])
-            .unwrap())
+            .map_err(|_| DecryptError::InsufficientBuffer)
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DecryptError {
     BadMac,
+    TooShort,
+    InsufficientBuffer,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum EncryptError {
+    InsufficientBuffer,
 }
 
 /// Encrypts `plaintext` using `iv` as initial vector and `encryption_key`. Writes the encrypted message
@@ -118,7 +143,7 @@ mod tests {
         cipher: Vec<u8>,
     }
 
-    fn token_enc_success() -> impl Iterator<Item = T> {
+    fn reference_samples() -> impl Iterator<Item = T> {
         include!("../tests/data/token_enc_success.txt").iter().map(
             |(sig, enc, iv, plain, cipher)| T {
                 sig: <[u8; 16]>::from_hex(sig).unwrap(),
@@ -131,8 +156,8 @@ mod tests {
     }
 
     #[test]
-    fn decrypt_reference() {
-        token_enc_success().for_each(
+    fn decrypt_reference_success() {
+        reference_samples().for_each(
             |T {
                  sig,
                  enc,
@@ -150,7 +175,7 @@ mod tests {
 
     #[test]
     fn decrypt_reference_invalid_hmac() {
-        token_enc_success().for_each(
+        reference_samples().for_each(
             |T {
                  sig,
                  enc,
@@ -170,8 +195,37 @@ mod tests {
     }
 
     #[test]
-    fn encrypt_reference() {
-        token_enc_success().for_each(
+    fn decrypt_reference_insufficient_buffer() {
+        reference_samples().for_each(
+            |T {
+                 sig, enc, cipher, ..
+             }| {
+                // Less than 16 bytes for padding.
+                let mut buf = [0u8; 15];
+                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
+                assert!(decrypted.is_err());
+                assert_eq!(decrypted.unwrap_err(), DecryptError::InsufficientBuffer);
+            },
+        )
+    }
+
+    #[test]
+    fn decrypt_reference_too_short() {
+        reference_samples().for_each(
+            |T {
+                 sig, enc, cipher, ..
+             }| {
+                // Cut message to less than 48 bytes (IV + HMAC). Buffer will not be used at all.
+                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher[..47], &mut [0u8; 0]);
+                assert!(decrypted.is_err());
+                assert_eq!(decrypted.unwrap_err(), DecryptError::TooShort);
+            },
+        )
+    }
+
+    #[test]
+    fn encrypt_reference_success() {
+        reference_samples().for_each(
             |T {
                  sig,
                  enc,
