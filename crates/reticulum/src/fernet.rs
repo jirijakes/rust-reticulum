@@ -15,6 +15,7 @@ pub struct Fernet<Rng> {
 
 const IV_LENGTH: usize = 16;
 const HMAC_LENGTH: usize = 32;
+type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 
 impl<Rng: CryptoRngCore> Fernet<Rng> {
     pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
@@ -25,27 +26,24 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
         }
     }
 
+    /// Encrypts `message` using this token. Writes encrypted message into `buf`
+    /// and returns the relevant slice backed by `buf`.
+    ///
+    /// The method is not deterministic; internally it generates random data
+    /// that are used as initial vector.
     pub fn encrypt<'a>(&mut self, message: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
-        type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
-
-        let iv = &mut buf[0..IV_LENGTH];
+        let (iv, ciphertext) = buf.split_at_mut(IV_LENGTH);
         self.rng.fill_bytes(iv);
 
-        let len = Aes128CbcEnc::new(
-            &self.encryption_key.into(),
-            Iv::<Aes128CbcEnc>::from_slice(iv),
-        )
-        .encrypt_padded_b2b_mut::<Pkcs7>(message, &mut buf[IV_LENGTH..])
-        .unwrap()
-        .len();
+        let len = encrypt(
+            message,
+            ciphertext,
+            iv,
+            self.encryption_key,
+            self.signing_key,
+        );
 
-        let mut h = hmac::Hmac::<Sha256>::new_from_slice(self.signing_key.as_slice()).unwrap();
-        h.update(&buf[..len + IV_LENGTH]);
-
-        buf[len + IV_LENGTH..len + IV_LENGTH + HMAC_LENGTH]
-            .copy_from_slice(h.finalize().into_bytes().as_slice());
-
-        &buf[0..len + IV_LENGTH + HMAC_LENGTH]
+        &buf[..len]
     }
 }
 
@@ -70,12 +68,69 @@ impl<Rng> Fernet<Rng> {
     }
 }
 
+/// Encrypts `plaintext` using `iv` as initial vector and `encryption_key`. Writes the encrypted message
+/// into `ciphertext` and appends to it HMAC using `signing_key`. Returns total length of the encrypted message
+/// including IV and HMAC.
+fn encrypt(
+    plaintext: &[u8],
+    ciphertext: &mut [u8],
+    iv: &[u8],
+    encryption_key: [u8; 16],
+    signing_key: [u8; 16],
+) -> usize {
+    let len = Aes128CbcEnc::new(&encryption_key.into(), Iv::<Aes128CbcEnc>::from_slice(iv))
+        .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, &mut ciphertext[..])
+        .unwrap()
+        .len();
+
+    let mut digest = hmac::Hmac::<Sha256>::new_from_slice(signing_key.as_slice()).unwrap();
+    digest.update(iv);
+    digest.update(&ciphertext[..len]);
+
+    let hmac = digest.finalize().into_bytes();
+    ciphertext[len..len + HMAC_LENGTH].copy_from_slice(&hmac[..]);
+
+    IV_LENGTH + len + HMAC_LENGTH
+}
+
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
     use hex::prelude::*;
     use rand_core::OsRng;
 
-    use crate::fernet::Fernet;
+    use crate::fernet::{Fernet, IV_LENGTH};
+
+    use super::encrypt;
+
+    #[test]
+    fn compare() {
+        include!("../tests/data/token_enc_success.txt")
+            .iter()
+            .map(|(sigkey, enckey, iv, plaintext, result)| {
+                (
+                    Vec::from_hex(sigkey).unwrap(),
+                    Vec::from_hex(enckey).unwrap(),
+                    Vec::from_hex(iv).unwrap(),
+                    Vec::from_hex(plaintext).unwrap(),
+                    Vec::from_hex(result).unwrap(),
+                )
+            })
+            .for_each(|(sigkey, enckey, iv, plaintext, result)| {
+                let mut buf = [0u8; 2048];
+                buf[..IV_LENGTH].copy_from_slice(&iv);
+
+                let len = encrypt(
+                    &plaintext,
+                    &mut buf[IV_LENGTH..],
+                    &iv,
+                    enckey.try_into().unwrap(),
+                    sigkey.try_into().unwrap(),
+                );
+
+                assert_eq!(buf[..len], result);
+            });
+    }
 
     #[test]
     fn go() {
