@@ -1,12 +1,10 @@
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH};
 use hex::DisplayHex;
-use hkdf::Hkdf;
 use rand_core::{CryptoRngCore, OsRng};
-use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-use crate::token::Token;
 use crate::sign::Sign;
+use crate::token::Token;
 
 pub struct Lynx([u8; Self::LENGTH]);
 
@@ -85,28 +83,11 @@ impl LinkRequest {
     }
 
     pub fn establish_link(&self, ephemeral_secret: EphemeralSecret) -> Link {
-        let mut derived_key = [0u8; 32];
-        let hkdf = Hkdf::<Sha256>::new(
-            Some(self.id.as_bytes()),
-            ephemeral_secret.diffie_hellman(&self.public_key).as_bytes(),
-        );
-        hkdf.expand(&[], &mut derived_key)
-            .expect("32 bytes is fine for Sha256");
-
-        let (signing_key, encryption_key) = derived_key.split_at(16);
-
-        let signing_key = signing_key.try_into().expect("There should be 16 bytes.");
-        let encryption_key = encryption_key
-            .try_into()
-            .expect("There should be another 16 bytes.");
-
-        let token = Token::new(signing_key, encryption_key, OsRng);
-
         Link {
             id: self.id,
             public_key: self.public_key,
             verifying_key: self.verifying_key,
-            token,
+            token: Token::derive(ephemeral_secret, self.public_key, self.id.as_bytes(), OsRng),
         }
     }
 

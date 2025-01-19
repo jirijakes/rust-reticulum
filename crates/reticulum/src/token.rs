@@ -1,10 +1,28 @@
 use aes::cipher::block_padding::Pkcs7;
 use aes::cipher::{BlockDecryptMut, Iv};
 use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use rand_core::CryptoRngCore;
 use sha2::Sha256;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
+/// Token for encrypting and decrypting data.
+///
+/// ## Internals
+///
+/// Encryption tokens are based on [https://github.com/fernet/spec/](Fernet) without
+/// version byte and timestamp. They use 16-byte signing key and 16-byte encryption key.
+/// Underlying cipher is AES-128-CBC-HMAC-SHA256 with PKCS#7 padding.
+///
+/// ## Format of ciphertext
+///
+/// ```txt
+///       16 B            N × 16 B                  32 B
+/// +----------------+------/ /-------+--------------------------------+
+/// |      IV        |    MESSAGE     |             HMAC               |
+/// +----------------+------/ /-------+--------------------------------+
+/// ```
 pub struct Token<Rng> {
     signing_key: [u8; 16],
     encryption_key: [u8; 16],
@@ -47,10 +65,48 @@ impl<Rng: CryptoRngCore> Token<Rng> {
 
         buf.get(..len).ok_or(EncryptError::InsufficientBuffer)
     }
+
+    /// Creates new token by deriving keys using ECDH and HKDF.
+    pub fn derive(
+        ephemeral_secret: EphemeralSecret,
+        public_key: PublicKey,
+        salt: &[u8],
+        rng: Rng,
+    ) -> Self {
+        let hkdf = Hkdf::<Sha256>::new(
+            Some(salt),
+            ephemeral_secret.diffie_hellman(&public_key).as_bytes(),
+        );
+
+        let mut derived_key = [0u8; 32];
+        hkdf.expand(&[], &mut derived_key)
+            .expect("32 bytes is fine for Sha256");
+
+        let (signing_key, encryption_key) = derived_key.split_at(16);
+
+        let signing_key = signing_key.try_into().expect("There should be 16 bytes.");
+        let encryption_key = encryption_key
+            .try_into()
+            .expect("There should be another 16 bytes.");
+
+        Self::new(signing_key, encryption_key, rng)
+    }
+
+    /// Generates new random token.
+    pub fn random(mut rng: Rng) -> Self {
+        let mut signing_key = [0u8; 16];
+        rng.fill_bytes(&mut signing_key[..]);
+
+        let mut encryption_key = [0u8; 16];
+        rng.fill_bytes(&mut encryption_key[..]);
+
+        Self::new(signing_key, encryption_key, rng)
+    }
 }
 
 impl<Rng> Token<Rng> {
-    pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
+    /// Returns new token with the given signing and encryption keys.
+    pub const fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
         Self {
             signing_key,
             encryption_key,

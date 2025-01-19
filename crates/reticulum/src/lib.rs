@@ -13,7 +13,7 @@ pub mod announce;
 pub mod context;
 pub mod destination;
 pub mod encode;
-mod token;
+pub mod token;
 pub mod identity;
 pub mod interface;
 pub mod link;
