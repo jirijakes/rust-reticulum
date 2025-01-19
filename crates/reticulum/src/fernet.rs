@@ -22,10 +22,19 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
     /// Encrypts `message` using this token. Writes encrypted message into `buf`
     /// and returns the relevant slice backed by `buf`.
     ///
-    /// The method is not deterministic; internally it generates random data
-    /// that are used as initial vector.
-    pub fn encrypt<'a>(&mut self, message: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
-        let (iv, ciphertext) = buf.split_at_mut(IV_LENGTH);
+    /// The method is not deterministic; internally it generates
+    /// random data that are used as initial vector. `buf` requires at
+    /// least 64 bytes (16 bytes IV, 16 bytes padding, 32 bytes HMAC).
+    ///
+    /// Returns error if `buf` is not long enough for encrypted message.
+    pub fn encrypt<'a>(
+        &mut self,
+        message: &[u8],
+        buf: &'a mut [u8],
+    ) -> Result<&'a [u8], EncryptError> {
+        let (iv, ciphertext) = buf
+            .split_at_mut_checked(IV_LENGTH)
+            .ok_or(EncryptError::InsufficientBuffer)?;
         self.rng.fill_bytes(iv);
 
         let len = encrypt(
@@ -34,9 +43,9 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
             iv.try_into().expect("correct length"),
             self.encryption_key,
             self.signing_key,
-        );
+        )?;
 
-        &buf[..len]
+        buf.get(..len).ok_or(EncryptError::InsufficientBuffer)
     }
 }
 
@@ -112,10 +121,10 @@ fn encrypt(
     iv: [u8; 16],
     encryption_key: [u8; 16],
     signing_key: [u8; 16],
-) -> usize {
+) -> Result<usize, EncryptError> {
     let len = Aes128CbcEnc::new(&encryption_key.into(), &Iv::<Aes128CbcEnc>::from(iv))
         .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, &mut ciphertext[..])
-        .unwrap()
+        .map_err(|_| EncryptError::InsufficientBuffer)?
         .len();
 
     let mut digest = HmacSha256::new_from_slice(&signing_key).expect("16 bytes is enough");
@@ -123,9 +132,12 @@ fn encrypt(
     digest.update(&ciphertext[..len]);
 
     let hmac = digest.finalize().into_bytes();
-    ciphertext[len..len + HMAC_LENGTH].copy_from_slice(&hmac[..]);
+    let hmac_buf = ciphertext
+        .get_mut(len..len + HMAC_LENGTH)
+        .ok_or(EncryptError::InsufficientBuffer)?;
+    hmac_buf.copy_from_slice(&hmac[..]);
 
-    IV_LENGTH + len + HMAC_LENGTH
+    Ok(IV_LENGTH + len + HMAC_LENGTH)
 }
 
 #[cfg(test)]
@@ -238,7 +250,30 @@ mod tests {
 
                 let len = encrypt(&plain, &mut buf[IV_LENGTH..], iv, enc, sig);
 
-                assert_eq!(buf[..len], cipher);
+                assert!(len.is_ok());
+                assert_eq!(buf[..len.unwrap()], cipher);
+            },
+        );
+    }
+
+    #[test]
+    fn encrypt_reference_insufficient_buffer() {
+        reference_samples().for_each(
+            |T {
+                 sig,
+                 enc,
+                 iv,
+                 plain,
+                 ..
+             }| {
+                // IV + HMAC + 1 pad = 64
+                let mut buf = [0u8; 63];
+                buf[..IV_LENGTH].copy_from_slice(&iv);
+
+                let len = encrypt(&plain, &mut buf[IV_LENGTH..], iv, enc, sig);
+
+                assert!(len.is_err());
+                assert_eq!(len.unwrap_err(), EncryptError::InsufficientBuffer);
             },
         );
     }
