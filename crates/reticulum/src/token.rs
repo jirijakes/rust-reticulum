@@ -212,7 +212,7 @@ mod tests {
     }
 
     fn reference_samples() -> impl Iterator<Item = T> {
-        include!("../tests/data/token_enc_success.txt").iter().map(
+        include!("../tests/data/token_encryption_samples.txt").iter().map(
             |(sig, enc, iv, plain, cipher)| T {
                 sig: <[u8; 16]>::from_hex(sig).unwrap(),
                 enc: <[u8; 16]>::from_hex(enc).unwrap(),
