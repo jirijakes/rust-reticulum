@@ -213,7 +213,7 @@ mod tests {
                 0x27, 0x61,
             ],
             transport_id: None,
-            context: 0,
+            context: PacketContext::None,
             data: Payload::PathRequest(PathRequest {
                 query: &[
                     235, 252, 186, 213, 27, 223, 220, 228, 69, 35, 238, 49, 26, 222, 169, 162,
