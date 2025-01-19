@@ -60,7 +60,7 @@ pub struct Link {
 
 impl Link {
     pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
-        self.fernet.decrypt(ciphertext, buf)
+        self.fernet.decrypt(ciphertext, buf).unwrap()
     }
 
     pub const fn link_id(&self) -> &LinkId {

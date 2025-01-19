@@ -1,9 +1,7 @@
 use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::BlockDecryptMut;
-use aes::cipher::Iv;
-use cbc::cipher::BlockEncryptMut;
-use cbc::cipher::KeyIvInit;
-use hmac::Mac;
+use aes::cipher::{BlockDecryptMut, Iv};
+use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use hmac::{Hmac, Mac};
 use rand_core::CryptoRngCore;
 use sha2::Sha256;
 
@@ -15,8 +13,10 @@ pub struct Fernet<Rng> {
 
 const IV_LENGTH: usize = 16;
 const HMAC_LENGTH: usize = 32;
+
 type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+type HmacSha256 = Hmac<Sha256>;
 
 impl<Rng: CryptoRngCore> Fernet<Rng> {
     /// Encrypts `message` using this token. Writes encrypted message into `buf`
@@ -49,23 +49,33 @@ impl<Rng> Fernet<Rng> {
         }
     }
 
-    pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
+    pub fn decrypt<'a>(
+        &self,
+        ciphertext: &[u8],
+        buf: &'a mut [u8],
+    ) -> Result<&'a [u8], DecryptError> {
         let hmac_index = ciphertext.len() - HMAC_LENGTH;
 
         let iv: [u8; IV_LENGTH] = ciphertext[0..IV_LENGTH].try_into().unwrap();
         let message = &ciphertext[IV_LENGTH..hmac_index];
         let tag: [u8; HMAC_LENGTH] = ciphertext[hmac_index..].try_into().unwrap();
 
-        // let x = hmac::Hmac::<Sha256>::new_from_slice(&self.signing_key)
-        //     .unwrap()
-        //     .chain_update(iv)
-        //     .chain_update(message)
-        //     .verify_slice(&tag);
+        HmacSha256::new_from_slice(&self.signing_key)
+            .expect("16 bytes is enough")
+            .chain_update(iv)
+            .chain_update(message)
+            .verify_slice(&tag)
+            .map_err(|_| DecryptError::BadMac)?;
 
-        Aes128CbcDec::new(&self.encryption_key.into(), &iv.into())
+        Ok(Aes128CbcDec::new(&self.encryption_key.into(), &iv.into())
             .decrypt_padded_b2b_mut::<Pkcs7>(message, &mut buf[..])
-            .unwrap()
+            .unwrap())
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum DecryptError {
+    BadMac,
 }
 
 /// Encrypts `plaintext` using `iv` as initial vector and `encryption_key`. Writes the encrypted message
@@ -83,7 +93,7 @@ fn encrypt(
         .unwrap()
         .len();
 
-    let mut digest = hmac::Hmac::<Sha256>::new_from_slice(signing_key.as_slice()).unwrap();
+    let mut digest = HmacSha256::new_from_slice(&signing_key).expect("16 bytes is enough");
     digest.update(&iv);
     digest.update(&ciphertext[..len]);
 
@@ -98,9 +108,7 @@ mod tests {
     use alloc::vec::Vec;
     use hex::prelude::*;
 
-    use crate::fernet::{Fernet, IV_LENGTH};
-
-    use super::encrypt;
+    use super::*;
 
     struct T {
         sig: [u8; 16],
@@ -133,8 +141,30 @@ mod tests {
                  ..
              }| {
                 let mut buf = [0u8; 2048];
-                let x = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
-                assert_eq!(plain, x);
+                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
+                assert!(decrypted.is_ok());
+                assert_eq!(decrypted.unwrap(), plain);
+            },
+        )
+    }
+
+    #[test]
+    fn decrypt_reference_invalid_hmac() {
+        token_enc_success().for_each(
+            |T {
+                 sig,
+                 enc,
+                 mut cipher,
+                 ..
+             }| {
+                // Flip a bit in IV.
+                cipher[0] ^= 1;
+
+                // Buffer will not be used at all.
+                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut [0u8; 0]);
+
+                assert!(decrypted.is_err());
+                assert_eq!(decrypted.unwrap_err(), DecryptError::BadMac);
             },
         )
     }
