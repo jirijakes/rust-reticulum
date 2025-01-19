@@ -5,7 +5,7 @@ use hmac::{Hmac, Mac};
 use rand_core::CryptoRngCore;
 use sha2::Sha256;
 
-pub struct Fernet<Rng> {
+pub struct Token<Rng> {
     signing_key: [u8; 16],
     encryption_key: [u8; 16],
     rng: Rng,
@@ -18,7 +18,7 @@ type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 type HmacSha256 = Hmac<Sha256>;
 
-impl<Rng: CryptoRngCore> Fernet<Rng> {
+impl<Rng: CryptoRngCore> Token<Rng> {
     /// Encrypts `message` using this token. Writes encrypted message into `buf`
     /// and returns the relevant slice backed by `buf`.
     ///
@@ -49,7 +49,7 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
     }
 }
 
-impl<Rng> Fernet<Rng> {
+impl<Rng> Token<Rng> {
     pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
         Self {
             signing_key,
@@ -178,7 +178,7 @@ mod tests {
                  ..
              }| {
                 let mut buf = [0u8; 2048];
-                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
+                let decrypted = Token::new(sig, enc, ()).decrypt(&cipher, &mut buf);
                 assert!(decrypted.is_ok());
                 assert_eq!(decrypted.unwrap(), plain);
             },
@@ -198,7 +198,7 @@ mod tests {
                 cipher[0] ^= 1;
 
                 // Buffer will not be used at all.
-                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut [0u8; 0]);
+                let decrypted = Token::new(sig, enc, ()).decrypt(&cipher, &mut [0u8; 0]);
 
                 assert!(decrypted.is_err());
                 assert_eq!(decrypted.unwrap_err(), DecryptError::BadMac);
@@ -214,7 +214,7 @@ mod tests {
              }| {
                 // Less than 16 bytes for padding.
                 let mut buf = [0u8; 15];
-                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
+                let decrypted = Token::new(sig, enc, ()).decrypt(&cipher, &mut buf);
                 assert!(decrypted.is_err());
                 assert_eq!(decrypted.unwrap_err(), DecryptError::InsufficientBuffer);
             },
@@ -228,7 +228,7 @@ mod tests {
                  sig, enc, cipher, ..
              }| {
                 // Cut message to less than 48 bytes (IV + HMAC). Buffer will not be used at all.
-                let decrypted = Fernet::new(sig, enc, ()).decrypt(&cipher[..47], &mut [0u8; 0]);
+                let decrypted = Token::new(sig, enc, ()).decrypt(&cipher[..47], &mut [0u8; 0]);
                 assert!(decrypted.is_err());
                 assert_eq!(decrypted.unwrap_err(), DecryptError::TooShort);
             },

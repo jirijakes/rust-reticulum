@@ -5,7 +5,7 @@ use rand_core::{CryptoRngCore, OsRng};
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-use crate::fernet::Fernet;
+use crate::token::Token;
 use crate::sign::Sign;
 
 pub struct Lynx([u8; Self::LENGTH]);
@@ -55,12 +55,12 @@ pub struct Link {
     id: LinkId,
     public_key: PublicKey,
     verifying_key: VerifyingKey,
-    fernet: Fernet<OsRng>,
+    token: Token<OsRng>,
 }
 
 impl Link {
     pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
-        self.fernet.decrypt(ciphertext, buf).unwrap()
+        self.token.decrypt(ciphertext, buf).unwrap()
     }
 
     pub const fn link_id(&self) -> &LinkId {
@@ -100,13 +100,13 @@ impl LinkRequest {
             .try_into()
             .expect("There should be another 16 bytes.");
 
-        let fernet = Fernet::new(signing_key, encryption_key, OsRng);
+        let token = Token::new(signing_key, encryption_key, OsRng);
 
         Link {
             id: self.id,
             public_key: self.public_key,
             verifying_key: self.verifying_key,
-            fernet,
+            token,
         }
     }
 
