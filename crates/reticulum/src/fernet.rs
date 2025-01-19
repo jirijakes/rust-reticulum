@@ -16,16 +16,9 @@ pub struct Fernet<Rng> {
 const IV_LENGTH: usize = 16;
 const HMAC_LENGTH: usize = 32;
 type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
+type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 impl<Rng: CryptoRngCore> Fernet<Rng> {
-    pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
-        Self {
-            signing_key,
-            encryption_key,
-            rng,
-        }
-    }
-
     /// Encrypts `message` using this token. Writes encrypted message into `buf`
     /// and returns the relevant slice backed by `buf`.
     ///
@@ -38,7 +31,7 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
         let len = encrypt(
             message,
             ciphertext,
-            iv,
+            iv.try_into().expect("correct length"),
             self.encryption_key,
             self.signing_key,
         );
@@ -48,8 +41,15 @@ impl<Rng: CryptoRngCore> Fernet<Rng> {
 }
 
 impl<Rng> Fernet<Rng> {
+    pub fn new(signing_key: [u8; 16], encryption_key: [u8; 16], rng: Rng) -> Self {
+        Self {
+            signing_key,
+            encryption_key,
+            rng,
+        }
+    }
+
     pub fn decrypt<'a>(&self, ciphertext: &[u8], buf: &'a mut [u8]) -> &'a [u8] {
-        type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
         let hmac_index = ciphertext.len() - HMAC_LENGTH;
 
         let iv: [u8; IV_LENGTH] = ciphertext[0..IV_LENGTH].try_into().unwrap();
@@ -74,17 +74,17 @@ impl<Rng> Fernet<Rng> {
 fn encrypt(
     plaintext: &[u8],
     ciphertext: &mut [u8],
-    iv: &[u8],
+    iv: [u8; 16],
     encryption_key: [u8; 16],
     signing_key: [u8; 16],
 ) -> usize {
-    let len = Aes128CbcEnc::new(&encryption_key.into(), Iv::<Aes128CbcEnc>::from_slice(iv))
+    let len = Aes128CbcEnc::new(&encryption_key.into(), &Iv::<Aes128CbcEnc>::from(iv))
         .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, &mut ciphertext[..])
         .unwrap()
         .len();
 
     let mut digest = hmac::Hmac::<Sha256>::new_from_slice(signing_key.as_slice()).unwrap();
-    digest.update(iv);
+    digest.update(&iv);
     digest.update(&ciphertext[..len]);
 
     let hmac = digest.finalize().into_bytes();
@@ -97,57 +97,65 @@ fn encrypt(
 mod tests {
     use alloc::vec::Vec;
     use hex::prelude::*;
-    use rand_core::OsRng;
 
     use crate::fernet::{Fernet, IV_LENGTH};
 
     use super::encrypt;
 
-    #[test]
-    fn compare() {
-        include!("../tests/data/token_enc_success.txt")
-            .iter()
-            .map(|(sigkey, enckey, iv, plaintext, result)| {
-                (
-                    Vec::from_hex(sigkey).unwrap(),
-                    Vec::from_hex(enckey).unwrap(),
-                    Vec::from_hex(iv).unwrap(),
-                    Vec::from_hex(plaintext).unwrap(),
-                    Vec::from_hex(result).unwrap(),
-                )
-            })
-            .for_each(|(sigkey, enckey, iv, plaintext, result)| {
-                let mut buf = [0u8; 2048];
-                buf[..IV_LENGTH].copy_from_slice(&iv);
+    struct T {
+        sig: [u8; 16],
+        enc: [u8; 16],
+        iv: [u8; 16],
+        plain: Vec<u8>,
+        cipher: Vec<u8>,
+    }
 
-                let len = encrypt(
-                    &plaintext,
-                    &mut buf[IV_LENGTH..],
-                    &iv,
-                    enckey.try_into().unwrap(),
-                    sigkey.try_into().unwrap(),
-                );
-
-                assert_eq!(buf[..len], result);
-            });
+    fn token_enc_success() -> impl Iterator<Item = T> {
+        include!("../tests/data/token_enc_success.txt").iter().map(
+            |(sig, enc, iv, plain, cipher)| T {
+                sig: <[u8; 16]>::from_hex(sig).unwrap(),
+                enc: <[u8; 16]>::from_hex(enc).unwrap(),
+                iv: <[u8; 16]>::from_hex(iv).unwrap(),
+                plain: Vec::from_hex(plain).unwrap(),
+                cipher: Vec::from_hex(cipher).unwrap(),
+            },
+        )
     }
 
     #[test]
-    fn go() {
-        let mut f = Fernet {
-            signing_key: [0x01; 16],
-            encryption_key: [0x02; 16],
-            rng: OsRng,
-        };
+    fn decrypt_reference() {
+        token_enc_success().for_each(
+            |T {
+                 sig,
+                 enc,
+                 plain,
+                 cipher,
+                 ..
+             }| {
+                let mut buf = [0u8; 2048];
+                let x = Fernet::new(sig, enc, ()).decrypt(&cipher, &mut buf);
+                assert_eq!(plain, x);
+            },
+        )
+    }
 
-        let m = b"rust-reticulum";
+    #[test]
+    fn encrypt_reference() {
+        token_enc_success().for_each(
+            |T {
+                 sig,
+                 enc,
+                 iv,
+                 plain,
+                 cipher,
+             }| {
+                let mut buf = [0u8; 2048];
+                buf[..IV_LENGTH].copy_from_slice(&iv);
 
-        let mut buf = [0; 500];
+                let len = encrypt(&plain, &mut buf[IV_LENGTH..], iv, enc, sig);
 
-        let x = f.encrypt(m.as_slice(), &mut buf);
-
-        let mut buf = [0; 500];
-
-        let y = f.decrypt(x, &mut buf);
+                assert_eq!(buf[..len], cipher);
+            },
+        );
     }
 }
