@@ -1,8 +1,9 @@
-use ed25519_dalek::{Signature, Signer, SigningKey};
+use ed25519_dalek::{Signature, SigningKey};
+use sha2::Sha512;
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
 
 pub trait Sign {
-    fn sign(&self, message: &[u8]) -> Signature;
+    fn sign(&self, digest: Sha512) -> Signature;
 }
 
 pub trait Dh {
@@ -19,8 +20,10 @@ impl FixedKeys {
 }
 
 impl Sign for FixedKeys {
-    fn sign(&self, message: &[u8]) -> Signature {
-        self.1.sign(message)
+    fn sign(&self, digest: Sha512) -> Signature {
+        self.1
+            .sign_prehashed(digest, None)
+            .expect("should not fail without context")
     }
 }
 

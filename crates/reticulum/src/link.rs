@@ -1,6 +1,7 @@
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH};
 use hex::DisplayHex;
 use rand_core::{CryptoRngCore, OsRng};
+use sha2::{Digest, Sha512};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 use crate::sign::Sign;
@@ -93,22 +94,17 @@ impl LinkRequest {
 
     /// Generates a signed proof that the link request was received by `identity`.
     pub fn prove<S: Sign>(&self, keys: &LinkKeys, secrets: &S) -> LinkProof {
-        const M1: usize = 16;
-        const M2: usize = M1 + PUBLIC_KEY_LENGTH;
-        const M3: usize = M2 + PUBLIC_KEY_LENGTH;
-
-        let mut message = [0u8; M3];
-
-        message[0..M1].copy_from_slice(self.id.as_bytes());
-        message[M1..M2].copy_from_slice(keys.public_key().as_bytes());
-        message[M2..M3].copy_from_slice(keys.verifying_key().as_bytes());
+        let mut hash = Sha512::new();
+        hash.update(self.id.as_bytes());
+        hash.update(keys.public_key().as_bytes());
+        hash.update(keys.verifying_key().as_bytes());
 
         const P1: usize = Signature::BYTE_SIZE;
         const P2: usize = P1 + PUBLIC_KEY_LENGTH;
 
         let mut proof = [0u8; P2];
 
-        proof[0..P1].copy_from_slice(&secrets.sign(&message).to_bytes());
+        proof[0..P1].copy_from_slice(&secrets.sign(hash).to_bytes());
         proof[P1..P2].copy_from_slice(keys.public_key().as_bytes());
 
         LinkProof(proof)

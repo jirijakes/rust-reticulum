@@ -18,14 +18,13 @@
 //!
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
-use alloc::vec;
 use alloc::string::String;
 use core::fmt::Display;
 use core::marker::PhantomData;
 
 use hex::DisplayHex;
 use rand_core::RngCore;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 
 use crate::announce::Announce;
 use crate::identity::Identity;
@@ -155,19 +154,19 @@ impl<'a> Destination<'a, Single, In, Identity> {
         app_data: Option<&'a [u8]>,
         sign: &impl Sign,
     ) -> Announce<'a> {
-        let mut buf = vec![];
-        buf.extend_from_slice(&self.hash);
-        buf.extend_from_slice(self.identity.public_key().as_bytes());
-        buf.extend_from_slice(self.identity.verifying_key().as_bytes());
-        buf.extend_from_slice(&self.name_hash);
-        buf.extend_from_slice(&random_hash);
+        let mut hash = Sha512::new();
+        hash.update(self.hash);
+        hash.update(self.identity.public_key().as_bytes());
+        hash.update(self.identity.verifying_key().as_bytes());
+        hash.update(self.name_hash);
+        hash.update(random_hash);
         if let Some(data) = app_data {
-            buf.extend_from_slice(data);
+            hash.update(data);
         }
 
         Announce {
             identity: *self.identity,
-            signature: sign.sign(&buf), //sign(digest),
+            signature: sign.sign(hash),
             name_hash: &self.name_hash,
             random_hash,
             app_data,
