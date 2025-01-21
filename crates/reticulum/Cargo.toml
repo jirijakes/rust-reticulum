@@ -13,7 +13,7 @@ aes = "0.8"
 cbc = "0.1"
 curve25519-dalek = "4.1"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-hex = { package = "hex-conservative", version = "0.2", default-features = false }
+hex = { package = "hex-conservative", version = "0.3", default-features = false }
 hkdf = "0.12"
 hmac = "0.12"
 log = "0.4"
@@ -26,4 +26,4 @@ x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 [dev-dependencies]
 rand = "0.8"
 hex-literal = "0.4"
-hex = { package = "hex-conservative", version = "0.2", default-features = true }
+hex = { package = "hex-conservative", version = "0.3", default-features = true }
