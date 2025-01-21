@@ -136,7 +136,7 @@ fn identity(input: &[u8]) -> IResult<&[u8], Identity> {
     Ok((input, Identity::new(public_key, verifying_key)))
 }
 
-fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], Payload> {
+fn announce(destination: [u8; 16]) -> impl FnMut(&[u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, identity) = identity(input)?;
         let (input, name_hash) = array(input)?;
@@ -159,7 +159,7 @@ fn announce<'a>(destination: [u8; 16]) -> impl FnMut(&'a [u8]) -> IResult<&'a [u
 }
 
 /// Parser for Link Request for a link with `id` (derived from packet).
-fn link_request<'a>(id: LinkId) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+fn link_request(id: LinkId) -> impl FnMut(&[u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
         let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
@@ -171,7 +171,7 @@ fn link_request<'a>(id: LinkId) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payloa
     }
 }
 
-fn link_data<'a>(context: PacketContext) -> impl FnMut(&'a [u8]) -> IResult<&[u8], Payload> {
+fn link_data(context: PacketContext) -> impl FnMut(&[u8]) -> IResult<&[u8], Payload> {
     move |input| {
         let (input, data) = rest(input)?;
         Ok((input, Payload::LinkData(context, data)))
