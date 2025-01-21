@@ -18,11 +18,12 @@
 //!
 //! [rns-path-request-destination]: https://github.com/markqvist/Reticulum/blob/35e9a0b38a4a88df1bde3d69ab014d35aadd05b9/RNS/Transport.py#L170
 //!
-use alloc::vec;
 use alloc::string::String;
+use alloc::vec;
 use core::fmt::Display;
 use core::marker::PhantomData;
 
+use generic_array::sequence::*;
 use hex::DisplayHex;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
@@ -257,11 +258,14 @@ impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
     }
 
     fn calculate_name_hash(app_name: &str, aspects: &str) -> [u8; 10] {
-        let mut engine = Sha256::new();
-        engine.update(app_name);
-        engine.update(".");
-        engine.update(aspects);
-        engine.finalize()[..10].try_into().expect("10 bytes")
+        Sha256::new()
+            .chain_update(app_name)
+            .chain_update(".")
+            .chain_update(aspects)
+            .finalize()
+            .split()
+            .0
+            .into()
     }
 
     fn calculate_hash(name_hash: &[u8; 10], identity: &I) -> [u8; 16] {
@@ -270,7 +274,7 @@ impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
         if let Some(id_hash) = identity.hash() {
             engine.update(id_hash);
         }
-        engine.finalize()[..16].try_into().expect("16 bytes")
+        engine.finalize().split().0.into()
     }
 
     pub fn destination_type(&self) -> packet::DestinationType {

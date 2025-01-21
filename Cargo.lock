@@ -513,6 +513,7 @@ dependencies = [
  "cbc",
  "curve25519-dalek",
  "ed25519-dalek",
+ "generic-array",
  "hex-conservative",
  "hex-literal",
  "hkdf",

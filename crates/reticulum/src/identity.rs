@@ -2,6 +2,7 @@ use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
+use generic_array::sequence::*;
 use hex::DisplayHex;
 use rand_core::CryptoRngCore;
 use sha2::{Digest, Sha256};
@@ -64,10 +65,13 @@ impl Identity {
     }
 
     fn calculate_hash(pubkey: &PublicKey, verifying_key: &VerifyingKey) -> [u8; 16] {
-        let mut engine = Sha256::new();
-        engine.update(pubkey);
-        engine.update(verifying_key);
-        engine.finalize()[..16].try_into().expect("16 bytes")
+        Sha256::new()
+            .chain_update(pubkey)
+            .chain_update(verifying_key)
+            .finalize()
+            .split()
+            .0
+            .into()
     }
 }
 

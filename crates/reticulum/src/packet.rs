@@ -2,6 +2,7 @@ use alloc::format;
 use alloc::string::String;
 use core::marker::PhantomData;
 
+use generic_array::sequence::*;
 use sha2::{Digest, Sha256};
 
 use crate::announce::Announce;
@@ -138,8 +139,7 @@ impl<'a, I: Interface, C: Context> Packet<'a, I, C> {
         // destination + context + data
         packet_hash.update(&out[h_len + t_len..len]);
 
-        let full_hash: [u8; 32] = packet_hash.finalize().into();
-        let truncated: [u8; 16] = full_hash[..16].try_into().expect("16 bytes");
+        let truncated: [_; 16] = packet_hash.finalize().split().0.into();
 
         (&out[..len], truncated)
     }

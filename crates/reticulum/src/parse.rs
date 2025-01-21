@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 
 use ed25519_dalek::VerifyingKey;
+use generic_array::sequence::*;
 use nom::bits::bits;
 use nom::branch::alt;
 use nom::bytes::complete::take;
@@ -237,8 +238,7 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
         ))(input)?,
         PacketType::Announce => announce(destination)(input)?,
         PacketType::LinkRequest => {
-            let full_hash: [u8; 32] = packet_hash.finalize().into();
-            let truncated: [u8; 16] = full_hash[..16].try_into().expect("16 bytes");
+            let truncated: [_; 16] = packet_hash.finalize().split().0.into();
             link_request(truncated.into())(input)?
         }
         PacketType::Proof => link_proof(input)?,
