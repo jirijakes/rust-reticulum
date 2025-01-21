@@ -10,7 +10,7 @@ use crate::identity::Identity;
 pub struct Announce<'a> {
     pub identity: Identity,
     pub signature: Signature,
-    pub name_hash: &'a [u8; 10],
+    pub name_hash: [u8; 10],
     pub random_hash: [u8; 10],
     pub app_data: Option<&'a [u8]>,
     pub destination: [u8; 16],
@@ -32,7 +32,7 @@ impl<'a> Announce<'a> {
         message.extend_from_slice(&self.destination);
         message.extend_from_slice(self.identity.public_key().as_bytes());
         message.extend_from_slice(self.identity.verifying_key().as_bytes());
-        message.extend_from_slice(self.name_hash);
+        message.extend_from_slice(&self.name_hash);
         message.extend_from_slice(&self.random_hash);
         if let Some(data) = self.app_data {
             message.extend_from_slice(data);

@@ -215,10 +215,10 @@ mod tests {
             transport_id: None,
             context: PacketContext::None,
             data: Payload::PathRequest(PathRequest {
-                query: &[
+                query: [
                     235, 252, 186, 213, 27, 223, 220, 228, 69, 35, 238, 49, 26, 222, 169, 162,
                 ],
-                transport: Some(&[
+                transport: Some([
                     192, 202, 232, 46, 73, 147, 217, 13, 240, 198, 26, 209, 158, 195, 141, 166,
                 ]),
                 tag: Some(&[

@@ -34,8 +34,8 @@ impl Identity {
         &self.verifying_key
     }
 
-    pub fn hash(&self) -> &[u8; 16] {
-        &self.hash
+    pub fn hash(&self) -> [u8; 16] {
+        self.hash
     }
 
     pub fn hash_str(&self) -> String {

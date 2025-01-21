@@ -107,15 +107,15 @@ impl Direction for In {}
 impl Direction for Out {}
 
 pub trait AsIdentity: sealed::AsIdentity {
-    fn hash(&self) -> Option<&[u8; 16]>;
+    fn hash(&self) -> Option<[u8; 16]>;
 }
 impl AsIdentity for Identity {
-    fn hash(&self) -> Option<&[u8; 16]> {
+    fn hash(&self) -> Option<[u8; 16]> {
         Some(self.hash())
     }
 }
 impl AsIdentity for () {
-    fn hash(&self) -> Option<&[u8; 16]> {
+    fn hash(&self) -> Option<[u8; 16]> {
         None
     }
 }
@@ -169,7 +169,7 @@ impl<'a> Destination<'a, Single, In, Identity> {
         Announce {
             identity: *self.identity,
             signature: sign.sign(&buf), //sign(digest),
-            name_hash: &self.name_hash,
+            name_hash: self.name_hash,
             random_hash,
             app_data,
             destination: self.hash,
@@ -230,8 +230,8 @@ impl<'a> Destination<'a, Plain, Out, ()> {
 
     pub const fn path_request(
         &'a self,
-        query: &'a [u8; 16],
-        transport: Option<&'a [u8; 16]>,
+        query: [u8; 16],
+        transport: Option<[u8; 16]>,
         tag: Option<&'a [u8]>,
     ) -> PathRequest<'a> {
         PathRequest {
@@ -245,7 +245,7 @@ impl<'a> Destination<'a, Plain, Out, ()> {
 impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
     pub fn new(identity: &'a I, app_name: &'a str, aspects: &'a str) -> Destination<'a, T, D, I> {
         let name_hash = Self::calculate_name_hash(app_name, aspects);
-        let hash = Self::calculate_hash(&name_hash, identity);
+        let hash = Self::calculate_hash(name_hash, identity);
         Destination {
             identity,
             app_name,
@@ -268,7 +268,7 @@ impl<'a, T: Type, D: Direction, I: AsIdentity> Destination<'a, T, D, I> {
             .into()
     }
 
-    fn calculate_hash(name_hash: &[u8; 10], identity: &I) -> [u8; 16] {
+    fn calculate_hash(name_hash: [u8; 10], identity: &I) -> [u8; 16] {
         let mut engine = Sha256::new();
         engine.update(name_hash);
         if let Some(id_hash) = identity.hash() {

@@ -21,6 +21,10 @@ impl Lynx {
     pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
         &self.0
     }
+
+    pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
+        self.0
+    }
 }
 
 pub struct LinkKeys {
@@ -87,7 +91,12 @@ impl LinkRequest {
             id: self.id,
             public_key: self.public_key,
             verifying_key: self.verifying_key,
-            token: Token::derive(ephemeral_secret, self.public_key, self.id.as_bytes(), OsRng),
+            token: Token::derive(
+                ephemeral_secret,
+                self.public_key,
+                &self.id.to_bytes(),
+                OsRng,
+            ),
         }
     }
 
@@ -99,7 +108,7 @@ impl LinkRequest {
 
         let mut message = [0u8; M3];
 
-        message[0..M1].copy_from_slice(self.id.as_bytes());
+        message[0..M1].copy_from_slice(&self.id.to_bytes());
         message[M1..M2].copy_from_slice(keys.public_key().as_bytes());
         message[M2..M3].copy_from_slice(keys.verifying_key().as_bytes());
 

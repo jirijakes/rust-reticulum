@@ -89,7 +89,7 @@ fn header(input: &[u8]) -> IResult<&[u8], Header> {
     bits(header_bits)(input)
 }
 
-fn hash(input: &[u8]) -> IResult<&[u8], &[u8; 16]> {
+fn hash(input: &[u8]) -> IResult<&[u8], [u8; 16]> {
     let (input, b): (&[u8], _) = take(16usize)(input)?;
     match b.try_into() {
         Ok(b) => Ok((input, b)),
@@ -121,7 +121,7 @@ fn path_request(input: &[u8]) -> IResult<&[u8], Payload> {
     ))
 }
 
-fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
+fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], [u8; N]> {
     let (input, bytes) = take(N)(input)?;
     let array = bytes
         .try_into()
@@ -131,8 +131,8 @@ fn array<const N: usize>(input: &[u8]) -> IResult<&[u8], &[u8; N]> {
 }
 
 fn identity(input: &[u8]) -> IResult<&[u8], Identity> {
-    let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
-    let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
+    let (input, public_key) = map(array, |a| PublicKey::from(a))(input)?;
+    let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(&a).ok())(input)?;
     Ok((input, Identity::new(public_key, verifying_key)))
 }
 
@@ -150,7 +150,7 @@ fn announce(destination: [u8; 16]) -> impl FnMut(&[u8]) -> IResult<&[u8], Payloa
                 identity,
                 signature,
                 name_hash,
-                random_hash: *random_hash,
+                random_hash,
                 app_data,
                 destination,
             }),
@@ -161,8 +161,8 @@ fn announce(destination: [u8; 16]) -> impl FnMut(&[u8]) -> IResult<&[u8], Payloa
 /// Parser for Link Request for a link with `id` (derived from packet).
 fn link_request(id: LinkId) -> impl FnMut(&[u8]) -> IResult<&[u8], Payload> {
     move |input| {
-        let (input, public_key) = map(array, |a| PublicKey::from(*a))(input)?;
-        let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(a).ok())(input)?;
+        let (input, public_key) = map(array, |a| PublicKey::from(a))(input)?;
+        let (input, verifying_key) = map_opt(array, |a| VerifyingKey::from_bytes(&a).ok())(input)?;
 
         Ok((
             input,
@@ -180,7 +180,7 @@ fn link_data(context: PacketContext) -> impl FnMut(&[u8]) -> IResult<&[u8], Payl
 
 /// Parser for a Link Proof.
 fn link_proof(input: &[u8]) -> IResult<&[u8], Payload> {
-    map(array, |&s| Payload::LinkProof(LinkProof::from_bytes(s)))(input)
+    map(array, |s| Payload::LinkProof(LinkProof::from_bytes(s)))(input)
 }
 
 /// Parser for Packet Context.
@@ -208,14 +208,14 @@ pub fn packet<I: Interface, C: Context>(input: &[u8]) -> IResult<&[u8], Packet<'
     let (input, header) = header(input)?;
     let (input, ifac) = cond(header.ifac_flag == IfacFlag::Authenticated, take(I::LENGTH))(input)?;
     let (input, transport_id) = if header.header_type == HeaderType::Type2 {
-        map(hash, |h| Some(*h))(input)?
+        map(hash, |h| Some(h))(input)?
     } else {
         success(None)(input)?
     };
 
     packet_hash.update(input);
 
-    let (input, destination) = map(hash, |h| *h)(input)?;
+    let (input, destination) = hash(input)?;
     let (input, context) = packet_context(input)?;
     let (input, data) = match header.packet_type {
         PacketType::Data => alt((
